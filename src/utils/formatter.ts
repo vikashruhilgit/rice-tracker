@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 import Table from 'cli-table3';
-import { formatInTimeZone } from 'date-fns-tz';
 import type { Issue } from '../types/index.js';
+import { toDisplayTime } from '../services/time-service.js';
 
 export function formatTimestamp(date: Date, timezone: string): string {
-  return formatInTimeZone(date, timezone, 'yyyy-MM-dd HH:mm:ss zzz');
+  return toDisplayTime(date, timezone);
 }
 
 export function priorityLabel(p: number): string {

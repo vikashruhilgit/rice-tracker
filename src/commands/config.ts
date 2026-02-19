@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getConfig, getProjectConfig, getCurrentProjectId } from '../utils/config.js';
 import { outputResult } from '../utils/formatter.js';
+import { isValidTimezone } from '../services/time-service.js';
 
 const ALLOWED_KEYS = ['timezone', 'defaultPriority', 'defaultType'] as const;
 type ConfigKey = (typeof ALLOWED_KEYS)[number];
@@ -22,6 +23,13 @@ configCommand
       const projectId = getCurrentProjectId();
       const conf = getConfig();
       let parsed: string | number = value;
+
+      if (key === 'timezone') {
+        if (!isValidTimezone(value)) {
+          console.error(`Error: Invalid timezone "${value}". Use a valid IANA timezone (e.g., America/New_York).`);
+          process.exit(1);
+        }
+      }
 
       if (key === 'defaultPriority') {
         parsed = parseInt(value, 10);
