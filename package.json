@@ -1,0 +1,32 @@
+{
+  "name": "rice-tracker",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "rt": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "conf": "^13.1.0",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "firebase": "^11.4.0",
+    "nanoid": "^5.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "eslint": "^9.20.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
