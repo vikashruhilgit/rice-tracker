@@ -1,15 +1,44 @@
 {
   "name": "rice-tracker",
   "version": "0.1.0",
+  "description": "Firebase-powered issue tracker CLI with dependency graphs, real-time sync, and Jira integration",
   "type": "module",
   "bin": {
     "rt": "./dist/index.js"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
     "dev": "tsx src/index.ts",
-    "lint": "eslint src/"
+    "lint": "eslint src/",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "issue-tracker",
+    "firebase",
+    "firestore",
+    "cli",
+    "jira",
+    "dependency-graph",
+    "project-management",
+    "real-time",
+    "ai-agent"
+  ],
+  "author": "Vikash Ruhil",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "chalk": "^5.4.1",
