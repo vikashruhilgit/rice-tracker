@@ -1,5 +1,7 @@
 # rt (rice-tracker)
 
+[![CI](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml)
+
 A Firebase-powered issue tracker CLI built for teams and AI agents. Cloud-first, real-time sync, with dependency graphs and Jira integration.
 
 | Feature | rt | Traditional trackers |

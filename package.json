@@ -52,11 +52,13 @@
     "nanoid": "^5.1.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@types/node": "^22.13.4",
     "eslint": "^9.20.0",
     "tsup": "^8.4.0",
     "tsx": "^4.19.3",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.56.0",
     "vitest": "^3.0.5"
   }
 }
