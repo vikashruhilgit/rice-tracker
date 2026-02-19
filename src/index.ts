@@ -8,6 +8,7 @@ import { updateCommand } from './commands/update.js';
 import { closeCommand } from './commands/close.js';
 import { depCommand } from './commands/dep.js';
 import { readyCommand } from './commands/ready.js';
+import { jiraCommand } from './commands/jira/index.js';
 
 const program = new Command();
 
@@ -25,5 +26,6 @@ program.addCommand(updateCommand);
 program.addCommand(closeCommand);
 program.addCommand(depCommand);
 program.addCommand(readyCommand);
+program.addCommand(jiraCommand);
 
 program.parse();

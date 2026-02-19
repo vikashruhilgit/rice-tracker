@@ -178,6 +178,21 @@ export async function updateIssue(
   return { ...existing, ...updates, updatedAt: now };
 }
 
+export async function updateIssueJiraFields(
+  id: string,
+  jiraKey: string,
+  jiraSyncedAt: Date,
+): Promise<void> {
+  const projectId = getCurrentProjectId();
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  await updateDoc(docRef, {
+    jiraKey,
+    jiraSyncedAt: Timestamp.fromDate(jiraSyncedAt),
+    updatedAt: Timestamp.fromDate(new Date()),
+  });
+}
+
 export async function closeIssue(id: string): Promise<Issue> {
   const projectId = getCurrentProjectId();
   const userId = getCurrentUserId();

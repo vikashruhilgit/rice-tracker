@@ -59,3 +59,15 @@ export function getJiraConfig(): JiraConfig {
 export function setJiraConfig(jiraConfig: JiraConfig): void {
   config.set('jira', jiraConfig);
 }
+
+export function getJiraFieldMapping(): JiraFieldMapping {
+  return config.get('jiraFieldMapping');
+}
+
+export function setJiraFieldMapping(mapping: JiraFieldMapping): void {
+  config.set('jiraFieldMapping', mapping);
+}
+
+export function resetJiraFieldMapping(): void {
+  config.set('jiraFieldMapping', DEFAULT_JIRA_FIELD_MAPPING);
+}
