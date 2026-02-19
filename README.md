@@ -1,6 +1,7 @@
 # rt (rice-tracker)
 
 [![CI](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml)
+[![Claude Code Review](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/claude-code-review.yml/badge.svg)](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/claude-code-review.yml)
 
 A Firebase-powered issue tracker CLI built for teams and AI agents. Cloud-first, real-time sync, with dependency graphs and Jira integration.
 
