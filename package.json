@@ -35,7 +35,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/vikashruhilgit/rice-tracker.git"
   },
   "engines": {
     "node": ">=22.0.0"
