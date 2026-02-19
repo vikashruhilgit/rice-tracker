@@ -9,6 +9,9 @@ import { closeCommand } from './commands/close.js';
 import { depCommand } from './commands/dep.js';
 import { readyCommand } from './commands/ready.js';
 import { jiraCommand } from './commands/jira/index.js';
+import { epicCommand } from './commands/epic.js';
+import { labelCommand } from './commands/label.js';
+import { commentCommand } from './commands/comment.js';
 
 const program = new Command();
 
@@ -27,5 +30,8 @@ program.addCommand(closeCommand);
 program.addCommand(depCommand);
 program.addCommand(readyCommand);
 program.addCommand(jiraCommand);
+program.addCommand(epicCommand);
+program.addCommand(labelCommand);
+program.addCommand(commentCommand);
 
 program.parse();
