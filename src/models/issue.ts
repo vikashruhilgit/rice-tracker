@@ -5,7 +5,7 @@ export function validateIssue(data: Partial<Issue>): string[] {
   const errors: string[] = [];
   if (!data.title || data.title.trim().length === 0) errors.push('Title is required');
   if (data.priority !== undefined && ![0, 1, 2, 3].includes(data.priority)) errors.push('Priority must be 0-3');
-  if (data.status && !['open', 'in_progress', 'closed'].includes(data.status)) errors.push('Invalid status');
+  if (data.status && !['open', 'in_progress', 'closed', 'archived'].includes(data.status)) errors.push('Invalid status');
   if (data.type && !['task', 'bug', 'epic', 'message', 'decision'].includes(data.type)) errors.push('Invalid type');
   return errors;
 }

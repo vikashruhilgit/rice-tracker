@@ -22,6 +22,7 @@ export function statusLabel(s: string): string {
     open: chalk.green,
     in_progress: chalk.yellow,
     closed: chalk.gray,
+    archived: chalk.dim,
   };
   return (colors[s] ?? chalk.white)(s);
 }

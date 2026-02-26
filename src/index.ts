@@ -18,6 +18,7 @@ import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { decisionCommand } from './commands/decision.js';
 import { doctorCommand } from './commands/doctor.js';
+import { compactCommand } from './commands/compact.js';
 import { startMcpServer } from './mcp/index.js';
 
 const program = new Command();
@@ -46,6 +47,7 @@ program.addCommand(exportCommand);
 program.addCommand(importCommand);
 program.addCommand(decisionCommand);
 program.addCommand(doctorCommand);
+program.addCommand(compactCommand);
 
 program
   .command('mcp')

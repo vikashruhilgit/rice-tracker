@@ -6,7 +6,7 @@ import { formatIssueTable, outputResult } from '../utils/formatter.js';
 
 export const listCommand = new Command('list')
   .description('List issues')
-  .option('-s, --status <status>', 'Filter by status (open|in_progress|closed)')
+  .option('-s, --status <status>', 'Filter by status (open|in_progress|closed|archived)')
   .option('-p, --priority <n>', 'Filter by priority (0-3)')
   .option('-a, --assignee <user>', 'Filter by assignee')
   .option('-t, --type <type>', 'Filter by type (task|bug|epic|message)')

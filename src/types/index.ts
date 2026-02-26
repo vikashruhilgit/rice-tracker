@@ -1,5 +1,5 @@
 export type IssueType = 'task' | 'bug' | 'epic' | 'message' | 'decision';
-export type IssueStatus = 'open' | 'in_progress' | 'closed';
+export type IssueStatus = 'open' | 'in_progress' | 'closed' | 'archived';
 export type Priority = 0 | 1 | 2 | 3; // P0=critical -> P3=low
 export type DependencyType = 'blocks' | 'related' | 'parent_child' | 'discovered_from' | 'duplicates' | 'supersedes' | 'replies_to';
 
@@ -61,6 +61,16 @@ export interface AuditEvent {
   changes: Record<string, { from: unknown; to: unknown }>;
   createdAt: Date;
   createdBy: string;
+}
+
+export interface CompactStub {
+  id: string;
+  title: string;
+  status: 'archived';
+  type: IssueType;
+  compactedAt: Date;
+  summary: string;
+  archiveRef: string;
 }
 
 export interface ProjectConfig {

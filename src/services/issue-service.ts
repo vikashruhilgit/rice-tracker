@@ -152,7 +152,15 @@ export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> 
   const q = query(colRef, ...constraints);
   const snapshot = await getDocs(q);
 
-  return snapshot.docs.map((docSnap) => issueConverter.fromFirestore(docSnap));
+  let issues = snapshot.docs.map((docSnap) => issueConverter.fromFirestore(docSnap));
+
+  // Exclude archived issues from default listing (same as closed behavior)
+  // Only include archived if explicitly filtering by status: 'archived'
+  if (!filters?.status) {
+    issues = issues.filter((i) => i.status !== 'archived');
+  }
+
+  return issues;
 }
 
 export async function updateIssue(

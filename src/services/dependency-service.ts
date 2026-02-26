@@ -24,8 +24,8 @@ import { issueConverter } from '../models/issue.js';
  * while A is open.
  */
 export function computeReadyIssues(issues: Issue[], dependencies: Dependency[]): Issue[] {
-  const openIssues = issues.filter((i) => i.status !== 'closed');
-  const closedIds = new Set(issues.filter((i) => i.status === 'closed').map((i) => i.id));
+  const openIssues = issues.filter((i) => i.status !== 'closed' && i.status !== 'archived');
+  const closedIds = new Set(issues.filter((i) => i.status === 'closed' || i.status === 'archived').map((i) => i.id));
   const openIds = new Set(openIssues.map((i) => i.id));
 
   // Build a map: toId -> [fromId] for 'blocks' dependencies.

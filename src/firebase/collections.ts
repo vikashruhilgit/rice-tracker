@@ -24,3 +24,7 @@ export function labelsCollection(projectId: string): CollectionReference {
 export function eventsCollection(projectId: string): CollectionReference {
   return collection(getDb(), getProjectPath(projectId), 'events');
 }
+
+export function archivedCollection(projectId: string): CollectionReference {
+  return collection(getDb(), getProjectPath(projectId), 'archived');
+}
