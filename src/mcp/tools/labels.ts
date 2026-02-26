@@ -7,17 +7,7 @@ import { labelsCollection } from '../../firebase/collections.js';
 import { getIssue, updateIssue } from '../../services/issue-service.js';
 import { generateId } from '../../utils/id-generator.js';
 import { getCurrentProjectId } from '../../utils/config.js';
-
-function toJson(data: unknown): string {
-  return JSON.stringify(data, null, 2);
-}
-
-function errorResult(err: unknown) {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }],
-    isError: true as const,
-  };
-}
+import { toJson, errorResult } from './helpers.js';
 
 export function registerLabelTools(server: McpServer): void {
   server.registerTool(

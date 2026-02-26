@@ -8,17 +8,7 @@ import { getIssue } from '../../services/issue-service.js';
 import { generateId } from '../../utils/id-generator.js';
 import { getCurrentProjectId } from '../../utils/config.js';
 import { getCurrentUserId } from '../../firebase/auth.js';
-
-function toJson(data: unknown): string {
-  return JSON.stringify(data, null, 2);
-}
-
-function errorResult(err: unknown) {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }],
-    isError: true as const,
-  };
-}
+import { toJson, errorResult } from './helpers.js';
 
 export function registerCommentTools(server: McpServer): void {
   server.registerTool(
@@ -28,6 +18,7 @@ export function registerCommentTools(server: McpServer): void {
       inputSchema: {
         issueId: z.string().describe('Issue ID'),
         body: z.string().describe('Comment body text'),
+        thread: z.string().optional().describe('Reply to comment ID (for threaded replies)'),
       },
     },
     async (args) => {
@@ -44,7 +35,7 @@ export function registerCommentTools(server: McpServer): void {
           body: args.body,
           createdAt: new Date(),
           createdBy: userId,
-          thread: null,
+          thread: args.thread ?? null,
         };
 
         const docRef = doc(colRef, comment.id);

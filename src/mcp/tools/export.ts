@@ -1,12 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { listIssues } from '../../services/issue-service.js';
-
-function errorResult(err: unknown) {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify({ error: err instanceof Error ? err.message : String(err) }) }],
-    isError: true as const,
-  };
-}
+import { errorResult } from './helpers.js';
 
 export function registerExportTool(server: McpServer): void {
   server.registerTool(

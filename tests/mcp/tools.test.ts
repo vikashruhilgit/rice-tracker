@@ -296,3 +296,234 @@ describe('MCP tool: rt_export', () => {
     expect(parsed).toHaveLength(2);
   });
 });
+
+describe('MCP tool: rt_add_comment', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('adds a comment and returns comment JSON', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    const { setDoc } = await import('firebase/firestore');
+    vi.mocked(getIssue).mockResolvedValue(makeIssue());
+    vi.mocked(setDoc).mockResolvedValue(undefined);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_add_comment',
+      arguments: { issueId: 'rt-a1b2', body: 'Hello' },
+    });
+
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(parsed.issueId).toBe('rt-a1b2');
+    expect(parsed.body).toBe('Hello');
+    expect(parsed.thread).toBeNull();
+  });
+
+  it('passes thread ID when provided', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    const { setDoc } = await import('firebase/firestore');
+    vi.mocked(getIssue).mockResolvedValue(makeIssue());
+    vi.mocked(setDoc).mockResolvedValue(undefined);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_add_comment',
+      arguments: { issueId: 'rt-a1b2', body: 'Reply', thread: 'cmt-parent' },
+    });
+
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(parsed.thread).toBe('cmt-parent');
+  });
+
+  it('returns isError when issue not found', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    vi.mocked(getIssue).mockRejectedValue(new Error('Issue not found'));
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_add_comment',
+      arguments: { issueId: 'rt-xxxx', body: 'Hi' },
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+    expect(parseText(result).error).toContain('Issue not found');
+  });
+});
+
+describe('MCP tool: rt_list_comments', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns array of comments for an issue', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    const { getDocs } = await import('firebase/firestore');
+    const { commentConverter } = await import('../../src/models/comment.js');
+
+    vi.mocked(getIssue).mockResolvedValue(makeIssue());
+    const fakeComment = { id: 'cmt-1', issueId: 'rt-a1b2', body: 'Hi', createdAt: new Date(), createdBy: 'u', thread: null };
+    vi.mocked(getDocs).mockResolvedValue({
+      docs: [{ data: () => fakeComment }],
+    } as unknown as ReturnType<typeof getDocs>);
+    vi.mocked(commentConverter.fromFirestore).mockReturnValue(fakeComment as unknown as ReturnType<typeof commentConverter.fromFirestore>);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({ name: 'rt_list_comments', arguments: { issueId: 'rt-a1b2' } });
+
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(1);
+  });
+
+  it('returns isError when issue not found', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    vi.mocked(getIssue).mockRejectedValue(new Error('Issue not found'));
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_list_comments',
+      arguments: { issueId: 'rt-xxxx' },
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe('MCP tool: rt_create_label', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('creates a label and returns label JSON', async () => {
+    const { getDocs, setDoc } = await import('firebase/firestore');
+    vi.mocked(getDocs).mockResolvedValue({ docs: [], empty: true } as unknown as ReturnType<typeof getDocs>);
+    vi.mocked(setDoc).mockResolvedValue(undefined);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_create_label',
+      arguments: { name: 'bug', color: '#ff0000' },
+    });
+
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(parsed.name).toBe('bug');
+    expect(parsed.color).toBe('#ff0000');
+  });
+
+  it('returns isError when label already exists', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    vi.mocked(getDocs).mockResolvedValue({
+      docs: [{}],
+      empty: false,
+    } as unknown as ReturnType<typeof getDocs>);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_create_label',
+      arguments: { name: 'bug' },
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+    expect(parseText(result).error).toContain('already exists');
+  });
+});
+
+describe('MCP tool: rt_list_labels', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns array of labels', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    const { labelConverter } = await import('../../src/models/label.js');
+    const fakeLabel = { id: 'lbl-1', name: 'bug', color: '#ff0000', description: '' };
+    vi.mocked(getDocs).mockResolvedValue({
+      docs: [{ data: () => fakeLabel }],
+    } as unknown as ReturnType<typeof getDocs>);
+    vi.mocked(labelConverter.fromFirestore).mockReturnValue(fakeLabel as unknown as ReturnType<typeof labelConverter.fromFirestore>);
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({ name: 'rt_list_labels', arguments: {} });
+
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].name).toBe('bug');
+  });
+
+  it('returns isError on service failure', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    vi.mocked(getDocs).mockRejectedValue(new Error('Firestore unavailable'));
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_list_labels',
+      arguments: {},
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe('MCP tool: rt_add_label_to_issue', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('adds label and returns updated issue', async () => {
+    const { getIssue, updateIssue } = await import('../../src/services/issue-service.js');
+    const issue = makeIssue({ labels: [] });
+    vi.mocked(getIssue).mockResolvedValue(issue);
+    vi.mocked(updateIssue).mockResolvedValue({ ...issue, labels: ['bug'] });
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_add_label_to_issue',
+      arguments: { issueId: 'rt-a1b2', labelName: 'bug' },
+    });
+
+    expect(updateIssue).toHaveBeenCalledWith('rt-a1b2', { labels: ['bug'] });
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(parsed.labels).toContain('bug');
+  });
+
+  it('returns isError when label already on issue', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    vi.mocked(getIssue).mockResolvedValue(makeIssue({ labels: ['bug'] }));
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_add_label_to_issue',
+      arguments: { issueId: 'rt-a1b2', labelName: 'bug' },
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+    expect(parseText(result).error).toContain('already has label');
+  });
+});
+
+describe('MCP tool: rt_remove_label_from_issue', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('removes label and returns updated issue', async () => {
+    const { getIssue, updateIssue } = await import('../../src/services/issue-service.js');
+    const issue = makeIssue({ labels: ['bug', 'urgent'] });
+    vi.mocked(getIssue).mockResolvedValue(issue);
+    vi.mocked(updateIssue).mockResolvedValue({ ...issue, labels: ['urgent'] });
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_remove_label_from_issue',
+      arguments: { issueId: 'rt-a1b2', labelName: 'bug' },
+    });
+
+    expect(updateIssue).toHaveBeenCalledWith('rt-a1b2', { labels: ['urgent'] });
+    const parsed = parseText(result as { content: { type: string; text?: string }[] });
+    expect(parsed.labels).not.toContain('bug');
+  });
+
+  it('returns isError when label not on issue', async () => {
+    const { getIssue } = await import('../../src/services/issue-service.js');
+    vi.mocked(getIssue).mockResolvedValue(makeIssue({ labels: [] }));
+
+    const { client } = await buildTestServer();
+    const result = await client.callTool({
+      name: 'rt_remove_label_from_issue',
+      arguments: { issueId: 'rt-a1b2', labelName: 'missing' },
+    }) as { isError?: boolean; content: { type: string; text?: string }[] };
+
+    expect(result.isError).toBe(true);
+    expect(parseText(result).error).toContain('does not have label');
+  });
+});

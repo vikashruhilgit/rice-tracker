@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { getFirebaseApp } from '../firebase/client.js';
+import pkg from '../../package.json' with { type: 'json' };
 import { registerIssueTools } from './tools/issues.js';
 import { registerDepsTools } from './tools/deps.js';
 import { registerCommentTools } from './tools/comments.js';
@@ -12,7 +13,7 @@ export async function startMcpServer(): Promise<void> {
   getFirebaseApp();
 
   const server = new McpServer(
-    { name: 'rice-tracker', version: '0.1.0' },
+    { name: 'rice-tracker', version: pkg.version },
     {
       capabilities: { tools: {} },
       instructions:
