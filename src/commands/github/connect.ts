@@ -19,6 +19,10 @@ export const connectCommand = new Command('connect')
         );
       }
 
+      if (opts.token) {
+        console.error('Warning: Token will be stored in plaintext config. Consider using GITHUB_TOKEN env var instead.');
+      }
+
       const config: GithubConfig = {
         owner: opts.owner,
         repo: opts.repo,

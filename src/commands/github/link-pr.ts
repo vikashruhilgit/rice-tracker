@@ -1,8 +1,7 @@
 import { Command } from 'commander';
 import { getGithubConfig } from '../../utils/config.js';
 import { getGithubPr } from '../../services/github-service.js';
-import { updateIssueGithubPrUrl } from '../../services/issue-service.js';
-import { getIssue } from '../../services/issue-service.js';
+import { updateIssueGithubPrUrl, getIssue } from '../../services/issue-service.js';
 import { outputResult } from '../../utils/formatter.js';
 
 export const linkPrCommand = new Command('link-pr')

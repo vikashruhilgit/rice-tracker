@@ -1,6 +1,10 @@
 import { Octokit } from '@octokit/rest';
+import type { Endpoints } from '@octokit/types';
 import type { GithubConfig } from '../types/github.js';
 import type { Issue } from '../types/index.js';
+
+export type GithubIssueData = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}']['response']['data'];
+export type GithubSearchItem = Endpoints['GET /search/issues-and-pull-requests']['response']['data']['items'][number];
 
 let client: Octokit | null = null;
 let clientToken: string | null = null;
@@ -68,7 +72,7 @@ export async function updateGithubIssue(
 export async function getGithubIssue(
   githubNumber: number,
   config: GithubConfig,
-): Promise<any> {
+): Promise<GithubIssueData> {
   const octokit = getGithubClient(config);
   const { data } = await octokit.issues.get({
     owner: config.owner,
@@ -81,7 +85,7 @@ export async function getGithubIssue(
 export async function searchGithubIssues(
   filter: string | undefined,
   config: GithubConfig,
-): Promise<any[]> {
+): Promise<GithubSearchItem[]> {
   const octokit = getGithubClient(config);
 
   // Use the search API with repo qualifier
@@ -95,7 +99,7 @@ export async function searchGithubIssues(
   });
 
   // Filter out pull requests (GitHub search includes them)
-  return data.items.filter((item: any) => !item.pull_request);
+  return data.items.filter((item) => !item.pull_request);
 }
 
 export async function getGithubPr(

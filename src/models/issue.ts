@@ -34,6 +34,7 @@ export const issueConverter = {
       githubNumber: data.githubNumber ?? null,
       githubSyncedAt: data.githubSyncedAt?.toDate() ?? null,
       githubPrUrl: data.githubPrUrl ?? null,
+      githubContentHashAtSync: data.githubContentHashAtSync ?? null,
       deferUntil: data.deferUntil?.toDate() ?? null,
       dueAt: data.dueAt?.toDate() ?? null,
     } as Issue;

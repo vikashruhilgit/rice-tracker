@@ -55,6 +55,7 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     githubNumber: null,
     githubSyncedAt: null,
     githubPrUrl: null,
+    githubContentHashAtSync: null,
     deferUntil: data.deferUntil ?? null,
     dueAt: data.dueAt ?? null,
     createdAt: now,
@@ -238,15 +239,20 @@ export async function updateIssueGithubFields(
   id: string,
   githubNumber: number,
   githubSyncedAt: Date,
+  githubContentHashAtSync?: string,
 ): Promise<void> {
   const projectId = getCurrentProjectId();
   const colRef = issuesCollection(projectId);
   const docRef = doc(colRef, id);
-  await updateDoc(docRef, {
+  const fields: Record<string, unknown> = {
     githubNumber,
     githubSyncedAt: Timestamp.fromDate(githubSyncedAt),
     updatedAt: Timestamp.fromDate(new Date()),
-  });
+  };
+  if (githubContentHashAtSync !== undefined) {
+    fields.githubContentHashAtSync = githubContentHashAtSync;
+  }
+  await updateDoc(docRef, fields);
 }
 
 export async function updateIssueGithubPrUrl(

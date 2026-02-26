@@ -26,6 +26,7 @@ export interface Issue {
   closedAt: Date | null;       // UTC always
   createdBy: string;
   contentHash: string;         // For change detection
+  githubContentHashAtSync: string | null; // contentHash snapshot at last GitHub sync
 }
 
 export interface Dependency {

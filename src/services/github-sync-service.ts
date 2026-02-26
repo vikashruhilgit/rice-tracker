@@ -66,13 +66,13 @@ export async function pushToGithub(issueId: string): Promise<GithubSyncResult> {
   if (issue.githubNumber) {
     await updateGithubIssue(issue.githubNumber, issue, config, labels);
     const now = new Date();
-    await updateIssueGithubFields(issueId, issue.githubNumber, now);
+    await updateIssueGithubFields(issueId, issue.githubNumber, now, issue.contentHash);
     return { action: 'updated', issueId, githubNumber: issue.githubNumber, direction: 'push' };
   }
 
   const githubNumber = await createGithubIssue(issue, config, labels);
   const now = new Date();
-  await updateIssueGithubFields(issueId, githubNumber, now);
+  await updateIssueGithubFields(issueId, githubNumber, now, issue.contentHash);
   return { action: 'created', issueId, githubNumber, direction: 'push' };
 }
 
@@ -152,7 +152,7 @@ export async function pullFromGithub(
 
   for (const ghIssue of ghIssues) {
     const ghNumber = ghIssue.number;
-    const ghLabels = (ghIssue.labels as any[]).map((l: any) =>
+    const ghLabels = ghIssue.labels.map((l) =>
       typeof l === 'string' ? l : l.name ?? '',
     );
 
@@ -168,18 +168,9 @@ export async function pullFromGithub(
 
     if (existingIssue) {
       // Check for local modifications since last sync (conflict detection)
-      if (!force) {
-        // Compute what contentHash was at sync time — we compare current contentHash
-        // with the hash that was set when we last synced. If the user has modified the
-        // issue locally after the sync, contentHash will differ.
-        const { createHash } = await import('node:crypto');
-        const syncTimeHash = createHash('sha256')
-          .update(`${existingIssue.title}|${existingIssue.description}`)
-          .digest('hex')
-          .slice(0, 16);
-
-        if (syncTimeHash !== existingIssue.contentHash) {
-          // Local changes exist since creation/last-update — conflict
+      if (!force && existingIssue.githubContentHashAtSync !== null) {
+        if (existingIssue.contentHash !== existingIssue.githubContentHashAtSync) {
+          // Local changes exist since last sync — conflict
           summary.skipped++;
           summary.conflicts.push({
             rtId: existingIssue.id,
@@ -204,7 +195,8 @@ export async function pullFromGithub(
         priority: parsePriorityFromLabels(ghLabels),
         status: ghIssue.state === 'closed' ? 'closed' : 'open',
       });
-      await updateIssueGithubFields(existingIssue.id, ghNumber, new Date());
+      const now = new Date();
+      await updateIssueGithubFields(existingIssue.id, ghNumber, now, existingIssue.contentHash);
       summary.updated++;
       summary.results.push({
         action: 'updated',
@@ -220,7 +212,7 @@ export async function pullFromGithub(
         type: parseTypeFromLabels(ghLabels),
         priority: parsePriorityFromLabels(ghLabels),
       });
-      await updateIssueGithubFields(newIssue.id, ghNumber, new Date());
+      await updateIssueGithubFields(newIssue.id, ghNumber, new Date(), newIssue.contentHash);
       summary.created++;
       summary.results.push({
         action: 'created',
