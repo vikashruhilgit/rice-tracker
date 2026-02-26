@@ -28,17 +28,23 @@ export const updateCommand = new Command('update')
       if (opts.assignee) updates.assignee = opts.assignee;
       if (opts.deferUntil !== undefined) {
         const d = new Date(opts.deferUntil as string);
-        if (isNaN(d.getTime())) { console.error('Error: Invalid --defer-until date'); process.exit(1); }
+        if (isNaN(d.getTime())) {
+          console.error('Error: Invalid --defer-until date');
+          process.exit(1);
+        }
         updates.deferUntil = d;
       }
       if (opts.due !== undefined) {
         const d = new Date(opts.due as string);
-        if (isNaN(d.getTime())) { console.error('Error: Invalid --due date'); process.exit(1); }
+        if (isNaN(d.getTime())) {
+          console.error('Error: Invalid --due date');
+          process.exit(1);
+        }
         updates.dueAt = d;
       }
 
       if (Object.keys(updates).length === 0) {
-        console.error('Error: No updates provided. Use -t, -d, --type, -p, -s, or -a flags.');
+        console.error('Error: No updates provided. Use -t, -d, --type, -p, -s, -a, --defer-until, or --due flags.');
         process.exit(1);
       }
 

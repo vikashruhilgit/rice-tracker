@@ -65,6 +65,8 @@ vi.mock('../../src/models/issue.js', () => ({
       updatedAt: { toDate: () => issue.updatedAt },
       closedAt: issue.closedAt ? { toDate: () => issue.closedAt } : null,
       jiraSyncedAt: issue.jiraSyncedAt ? { toDate: () => issue.jiraSyncedAt } : null,
+      deferUntil: issue.deferUntil ? { toDate: () => issue.deferUntil } : null,
+      dueAt: issue.dueAt ? { toDate: () => issue.dueAt } : null,
     }),
     fromFirestore: (snapshot: { data: () => Record<string, unknown> }) => {
       const data = snapshot.data();
@@ -74,6 +76,8 @@ vi.mock('../../src/models/issue.js', () => ({
         updatedAt: (data.updatedAt as { toDate: () => Date })?.toDate?.() ?? new Date(),
         closedAt: data.closedAt ? (data.closedAt as { toDate: () => Date })?.toDate?.() : null,
         jiraSyncedAt: data.jiraSyncedAt ? (data.jiraSyncedAt as { toDate: () => Date })?.toDate?.() : null,
+        deferUntil: data.deferUntil ? (data.deferUntil as { toDate: () => Date })?.toDate?.() : null,
+        dueAt: data.dueAt ? (data.dueAt as { toDate: () => Date })?.toDate?.() : null,
       } as Issue;
     },
   },
@@ -100,6 +104,8 @@ function makeIssueDoc(overrides: Partial<Issue> & { id: string }) {
     childIndex: null,
     jiraKey: null,
     jiraSyncedAt: null,
+    deferUntil: null,
+    dueAt: null,
     createdAt: { toDate: () => now },
     updatedAt: { toDate: () => now },
     closedAt: null,
@@ -109,6 +115,8 @@ function makeIssueDoc(overrides: Partial<Issue> & { id: string }) {
     // Override date fields to firestore-like format
     ...(overrides.createdAt ? { createdAt: { toDate: () => overrides.createdAt! } } : {}),
     ...(overrides.updatedAt ? { updatedAt: { toDate: () => overrides.updatedAt! } } : {}),
+    ...(overrides.deferUntil ? { deferUntil: { toDate: () => overrides.deferUntil! } } : { deferUntil: null }),
+    ...(overrides.dueAt ? { dueAt: { toDate: () => overrides.dueAt! } } : { dueAt: null }),
   };
   return {
     exists: () => true,
@@ -268,6 +276,81 @@ describe('listIssues', () => {
 
     expect(where).toHaveBeenCalledWith('status', '==', 'open');
     expect(where).toHaveBeenCalledWith('priority', '==', 1);
+  });
+});
+
+describe('createIssue scheduling fields', () => {
+  it('returns issue with deferUntil and dueAt set correctly', async () => {
+    const deferUntil = new Date('2026-03-01T00:00:00Z');
+    const dueAt = new Date('2026-03-15T00:00:00Z');
+
+    const result = await createIssue({ title: 'Scheduled', deferUntil, dueAt });
+
+    expect(result.deferUntil).toEqual(deferUntil);
+    expect(result.dueAt).toEqual(dueAt);
+    // Batch was committed with the issue (set x2: issue + event)
+    expect(mockBatchSet).toHaveBeenCalledTimes(2);
+    expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('updateIssue scheduling fields', () => {
+  it('sets deferUntil to null on returned issue and passes null to batch.update', async () => {
+    const { getDoc } = await import('firebase/firestore');
+    const existingDoc = makeIssueDoc({ id: 'rt-defer', deferUntil: new Date('2026-01-01') });
+    vi.mocked(getDoc).mockResolvedValueOnce(existingDoc as any);
+
+    const result = await updateIssue('rt-defer', { deferUntil: null });
+
+    expect(result.deferUntil).toBeNull();
+    // batch.update should have been called with deferUntil: null
+    const updateArg = mockBatchUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updateArg.deferUntil).toBeNull();
+  });
+
+  it('stores dueAt in Firestore-compatible format when updating', async () => {
+    const { getDoc } = await import('firebase/firestore');
+    const existingDoc = makeIssueDoc({ id: 'rt-due' });
+    vi.mocked(getDoc).mockResolvedValueOnce(existingDoc as any);
+    const dueAt = new Date('2026-04-01T00:00:00Z');
+
+    const result = await updateIssue('rt-due', { dueAt });
+
+    expect(result.dueAt).toEqual(dueAt);
+    // batch.update should carry a Firestore Timestamp for dueAt (not a raw Date)
+    const updateArg = mockBatchUpdate.mock.calls[0][1] as Record<string, unknown>;
+    expect(updateArg.dueAt).toHaveProperty('toDate');
+  });
+});
+
+describe('listIssues overdue filter', () => {
+  it('returns issues where dueAt is in the past and status is not closed', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    const past = new Date(Date.now() - 86_400_000); // yesterday
+    const future = new Date(Date.now() + 86_400_000); // tomorrow
+
+    const overdueDoc = makeIssueDoc({ id: 'rt-overdue', dueAt: past, status: 'open' });
+    const futureDoc = makeIssueDoc({ id: 'rt-future', dueAt: future, status: 'open' });
+    const closedDoc = makeIssueDoc({ id: 'rt-closed', dueAt: past, status: 'closed', closedAt: new Date() });
+    const noDueDoc = makeIssueDoc({ id: 'rt-nodue' });
+
+    vi.mocked(getDocs).mockResolvedValueOnce({ docs: [overdueDoc, futureDoc, closedDoc, noDueDoc] } as any);
+
+    const result = await listIssues({ overdue: true });
+
+    expect(result.map((i) => i.id)).toEqual(['rt-overdue']);
+  });
+
+  it('excludes closed issues even when dueAt is in the past', async () => {
+    const { getDocs } = await import('firebase/firestore');
+    const past = new Date(Date.now() - 86_400_000);
+    const closedDoc = makeIssueDoc({ id: 'rt-cls', dueAt: past, status: 'closed', closedAt: new Date() });
+
+    vi.mocked(getDocs).mockResolvedValueOnce({ docs: [closedDoc] } as any);
+
+    const result = await listIssues({ overdue: true });
+
+    expect(result).toHaveLength(0);
   });
 });
 

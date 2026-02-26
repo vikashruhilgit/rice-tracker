@@ -4,6 +4,7 @@ import {
   computeReadyIssues,
   hasCircularDependency,
 } from '../../src/services/dependency-service.js';
+import { validateDependency } from '../../src/models/dependency.js';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -249,5 +250,45 @@ describe('hasCircularDependency', () => {
     expect(hasCircularDependency(deps, 'e', 'a')).toBe(false);
     // Adding d -> a WOULD be a cycle
     expect(hasCircularDependency(deps, 'd', 'a')).toBe(true);
+  });
+});
+
+// ── validateDependency ──────────────────────────────────────────────
+
+describe('validateDependency', () => {
+  it('returns no errors for valid blocks dependency', () => {
+    expect(validateDependency({ fromId: 'rt-001', toId: 'rt-002', type: 'blocks' })).toEqual([]);
+  });
+
+  it('returns no errors for type "duplicates"', () => {
+    expect(validateDependency({ fromId: 'rt-001', toId: 'rt-002', type: 'duplicates' })).toEqual([]);
+  });
+
+  it('returns no errors for type "supersedes"', () => {
+    expect(validateDependency({ fromId: 'rt-001', toId: 'rt-002', type: 'supersedes' })).toEqual([]);
+  });
+
+  it('returns no errors for type "replies_to"', () => {
+    expect(validateDependency({ fromId: 'rt-001', toId: 'rt-002', type: 'replies_to' })).toEqual([]);
+  });
+
+  it('returns error for invalid dependency type', () => {
+    const errors = validateDependency({ fromId: 'rt-001', toId: 'rt-002', type: 'unknown' as any });
+    expect(errors).toContain('Invalid dependency type');
+  });
+
+  it('returns error when fromId is missing', () => {
+    const errors = validateDependency({ toId: 'rt-002', type: 'blocks' });
+    expect(errors).toContain('fromId is required');
+  });
+
+  it('returns error when toId is missing', () => {
+    const errors = validateDependency({ fromId: 'rt-001', type: 'blocks' });
+    expect(errors).toContain('toId is required');
+  });
+
+  it('returns error for self-dependency', () => {
+    const errors = validateDependency({ fromId: 'rt-001', toId: 'rt-001', type: 'blocks' });
+    expect(errors).toContain('Cannot create self-dependency');
   });
 });

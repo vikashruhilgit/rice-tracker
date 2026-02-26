@@ -9,7 +9,6 @@ import {
 import { getCurrentProjectId } from '../utils/config.js';
 import { issueConverter } from '../models/issue.js';
 import { dependencyConverter } from '../models/dependency.js';
-import { hasCircularDependency } from '../services/dependency-service.js';
 
 export interface HealthIssue {
   type: 'orphaned_dependency' | 'orphaned_label_ref' | 'orphaned_parent' | 'cycle';
@@ -91,22 +90,37 @@ export async function runDoctor(fix: boolean): Promise<{ issues: HealthIssue[]; 
   }
 
   // 4. Dependency cycles (report existing cycles in current graph)
-  const visited = new Set<string>();
+  // Build adjacency map once — O(n)
+  const adjMap = new Map<string, Set<string>>();
   for (const dep of allDeps) {
-    const cycleKey = `${dep.fromId}:${dep.toId}`;
-    if (!visited.has(cycleKey)) {
-      // Check if this edge is part of a cycle by seeing if toId can reach fromId
-      // through the remaining edges (i.e., the graph minus this edge has a path toId->fromId)
-      const otherDeps = allDeps.filter((d) => d.id !== dep.id);
-      if (hasCircularDependency(otherDeps, dep.toId, dep.fromId)) {
-        visited.add(cycleKey);
-        healthIssues.push({
-          type: 'cycle',
-          id: dep.id,
-          description: `Cycle detected involving dependency ${dep.fromId} -> ${dep.toId}`,
-          fixable: false,
-        });
-      }
+    if (!adjMap.has(dep.fromId)) adjMap.set(dep.fromId, new Set());
+    adjMap.get(dep.fromId)!.add(dep.toId);
+  }
+
+  const canReach = (from: string, to: string): boolean => {
+    const seen = new Set<string>();
+    const queue = [from];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (cur === to) return true;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      adjMap.get(cur)?.forEach((n) => queue.push(n));
+    }
+    return false;
+  };
+
+  for (const dep of allDeps) {
+    adjMap.get(dep.fromId)?.delete(dep.toId);       // temporarily remove edge
+    const inCycle = canReach(dep.toId, dep.fromId);  // check remaining graph
+    adjMap.get(dep.fromId)?.add(dep.toId);           // restore edge
+    if (inCycle) {
+      healthIssues.push({
+        type: 'cycle',
+        id: dep.id,
+        description: `Cycle detected involving dependency ${dep.fromId} -> ${dep.toId}`,
+        fixable: false,
+      });
     }
   }
 
@@ -130,10 +144,10 @@ export const doctorCommand = new Command('doctor')
         console.log('✓ No health issues found.');
       } else {
         console.log(`Found ${result.issues.length} health issue(s):\n`);
-        for (const issue of result.issues) {
-          const fixTag = issue.fixable ? '[fixable]' : '[manual]';
-          console.log(`  ${issue.type} ${fixTag}`);
-          console.log(`    ${issue.description}`);
+        for (const healthIssue of result.issues) {
+          const fixTag = healthIssue.fixable ? '[fixable]' : '[manual]';
+          console.log(`  ${healthIssue.type} ${fixTag}`);
+          console.log(`    ${healthIssue.description}`);
         }
       }
 
