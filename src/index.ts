@@ -17,6 +17,7 @@ import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
 import { decisionCommand } from './commands/decision.js';
 import { doctorCommand } from './commands/doctor.js';
+import { startMcpServer } from './mcp/index.js';
 
 const program = new Command();
 
@@ -43,5 +44,12 @@ program.addCommand(exportCommand);
 program.addCommand(importCommand);
 program.addCommand(decisionCommand);
 program.addCommand(doctorCommand);
+
+program
+  .command('mcp')
+  .description('Start the MCP server (stdio transport) for Claude Code integration')
+  .action(async () => {
+    await startMcpServer();
+  });
 
 program.parse();
