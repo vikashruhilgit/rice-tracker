@@ -33,6 +33,34 @@ export interface CompactReport {
   }[];
 }
 
+function chunk<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
+}
+
+async function fetchDepsByIds(
+  depCol: ReturnType<typeof dependenciesCollection>,
+  ids: string[],
+): Promise<Dependency[]> {
+  if (ids.length === 0) return [];
+  const batches = chunk(ids, 30);
+  const results: Dependency[] = [];
+  for (const batch of batches) {
+    const [fromSnap, toSnap] = await Promise.all([
+      getDocs(query(depCol, where('fromId', 'in', batch))),
+      getDocs(query(depCol, where('toId', 'in', batch))),
+    ]);
+    results.push(
+      ...fromSnap.docs.map((d) => d.data() as Dependency),
+      ...toSnap.docs.map((d) => d.data() as Dependency),
+    );
+  }
+  return results;
+}
+
 export function parseOlderThan(str: string): number {
   const match = str.match(/^(\d+)d$/);
   if (!match) {
@@ -83,9 +111,9 @@ export async function getCompactCandidates(olderThanMs: number): Promise<Compact
   const allIssueSnap = await getDocs(issueCol);
   const openIssueIds = new Set(
     allIssueSnap.docs
-      .map((d) => d.data())
+      .map((d) => d.data() as Pick<Issue, 'id' | 'status'>)
       .filter((d) => d.status === 'open' || d.status === 'in_progress')
-      .map((d) => d.id as string),
+      .map((d) => d.id),
   );
 
   const cutoff = new Date(Date.now() - olderThanMs);
@@ -164,18 +192,25 @@ export async function compactIssues(
     return report;
   }
 
+  // Pre-fetch all deps for all candidates in bulk (avoids N+1 reads)
+  const toCompactIds = toCompact.map((c) => c.issue.id);
+  const allDeps = await fetchDepsByIds(depCol, toCompactIds);
+
+  // Group deps by issue ID for O(1) lookup in the loop
+  const depsByIssue = new Map<string, Dependency[]>();
+  for (const dep of allDeps) {
+    for (const id of [dep.fromId, dep.toId]) {
+      if (toCompactIds.includes(id)) {
+        if (!depsByIssue.has(id)) depsByIssue.set(id, []);
+        depsByIssue.get(id)!.push(dep);
+      }
+    }
+  }
+
   // Apply compaction
   for (const c of toCompact) {
     const issue = c.issue;
-
-    // Get dependencies for summary
-    const fromQuery = query(depCol, where('fromId', '==', issue.id));
-    const toQuery = query(depCol, where('toId', '==', issue.id));
-    const [fromSnap, toSnap] = await Promise.all([getDocs(fromQuery), getDocs(toQuery)]);
-    const deps = [
-      ...fromSnap.docs.map((d) => d.data() as Dependency),
-      ...toSnap.docs.map((d) => d.data() as Dependency),
-    ];
+    const deps = depsByIssue.get(issue.id) ?? [];
 
     const summary = generateSummary(issue, deps);
     const now = new Date();

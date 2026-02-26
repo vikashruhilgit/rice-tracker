@@ -7,6 +7,7 @@ import { registerDepsTools } from './tools/deps.js';
 import { registerCommentTools } from './tools/comments.js';
 import { registerLabelTools } from './tools/labels.js';
 import { registerExportTool } from './tools/export.js';
+import { registerCompactTools } from './tools/compact.js';
 
 export async function startMcpServer(): Promise<void> {
   // Initialize Firebase before any tool can be called
@@ -26,6 +27,7 @@ export async function startMcpServer(): Promise<void> {
   registerCommentTools(server);
   registerLabelTools(server);
   registerExportTool(server);
+  registerCompactTools(server);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
