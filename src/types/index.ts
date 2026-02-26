@@ -16,6 +16,9 @@ export interface Issue {
   childIndex: number | null;   // .1, .2 numbering
   jiraKey: string | null;      // Linked Jira ticket
   jiraSyncedAt: Date | null;
+  githubNumber: number | null;   // Linked GitHub issue number
+  githubSyncedAt: Date | null;   // Last sync timestamp with GitHub
+  githubPrUrl: string | null;    // Linked GitHub PR URL
   deferUntil: Date | null;     // Scheduling: defer until date
   dueAt: Date | null;          // Scheduling: due date
   createdAt: Date;             // UTC always

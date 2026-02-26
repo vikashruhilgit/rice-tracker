@@ -18,6 +18,7 @@ export const issueConverter = {
       updatedAt: Timestamp.fromDate(issue.updatedAt),
       closedAt: issue.closedAt ? Timestamp.fromDate(issue.closedAt) : null,
       jiraSyncedAt: issue.jiraSyncedAt ? Timestamp.fromDate(issue.jiraSyncedAt) : null,
+      githubSyncedAt: issue.githubSyncedAt ? Timestamp.fromDate(issue.githubSyncedAt) : null,
       deferUntil: issue.deferUntil ? Timestamp.fromDate(issue.deferUntil) : null,
       dueAt: issue.dueAt ? Timestamp.fromDate(issue.dueAt) : null,
     };
@@ -30,6 +31,9 @@ export const issueConverter = {
       updatedAt: data.updatedAt?.toDate() ?? new Date(),
       closedAt: data.closedAt?.toDate() ?? null,
       jiraSyncedAt: data.jiraSyncedAt?.toDate() ?? null,
+      githubNumber: data.githubNumber ?? null,
+      githubSyncedAt: data.githubSyncedAt?.toDate() ?? null,
+      githubPrUrl: data.githubPrUrl ?? null,
       deferUntil: data.deferUntil?.toDate() ?? null,
       dueAt: data.dueAt?.toDate() ?? null,
     } as Issue;

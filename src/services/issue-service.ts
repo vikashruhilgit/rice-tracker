@@ -52,6 +52,9 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     childIndex: null,
     jiraKey: null,
     jiraSyncedAt: null,
+    githubNumber: null,
+    githubSyncedAt: null,
+    githubPrUrl: null,
     deferUntil: data.deferUntil ?? null,
     dueAt: data.dueAt ?? null,
     createdAt: now,
@@ -227,6 +230,34 @@ export async function updateIssueJiraFields(
   await updateDoc(docRef, {
     jiraKey,
     jiraSyncedAt: Timestamp.fromDate(jiraSyncedAt),
+    updatedAt: Timestamp.fromDate(new Date()),
+  });
+}
+
+export async function updateIssueGithubFields(
+  id: string,
+  githubNumber: number,
+  githubSyncedAt: Date,
+): Promise<void> {
+  const projectId = getCurrentProjectId();
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  await updateDoc(docRef, {
+    githubNumber,
+    githubSyncedAt: Timestamp.fromDate(githubSyncedAt),
+    updatedAt: Timestamp.fromDate(new Date()),
+  });
+}
+
+export async function updateIssueGithubPrUrl(
+  id: string,
+  githubPrUrl: string,
+): Promise<void> {
+  const projectId = getCurrentProjectId();
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  await updateDoc(docRef, {
+    githubPrUrl,
     updatedAt: Timestamp.fromDate(new Date()),
   });
 }
