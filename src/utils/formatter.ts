@@ -51,6 +51,8 @@ export function formatIssueDetail(issue: Issue, timezone: string): string {
     `Labels: ${issue.labels.length > 0 ? issue.labels.join(', ') : 'none'}`,
     issue.parentId ? `Parent: ${issue.parentId}` : null,
     issue.jiraKey ? `Jira: ${issue.jiraKey}` : null,
+    issue.dueAt ? `Due: ${formatTimestamp(issue.dueAt, timezone)}` : null,
+    issue.deferUntil ? `Defer until: ${formatTimestamp(issue.deferUntil, timezone)}` : null,
     `Created: ${formatTimestamp(issue.createdAt, timezone)} by ${issue.createdBy}`,
     `Updated: ${formatTimestamp(issue.updatedAt, timezone)}`,
     issue.closedAt ? `Closed: ${formatTimestamp(issue.closedAt, timezone)}` : null,

@@ -1,7 +1,7 @@
-export type IssueType = 'task' | 'bug' | 'epic' | 'message';
+export type IssueType = 'task' | 'bug' | 'epic' | 'message' | 'decision';
 export type IssueStatus = 'open' | 'in_progress' | 'closed';
 export type Priority = 0 | 1 | 2 | 3; // P0=critical -> P3=low
-export type DependencyType = 'blocks' | 'related' | 'parent_child' | 'discovered_from';
+export type DependencyType = 'blocks' | 'related' | 'parent_child' | 'discovered_from' | 'duplicates' | 'supersedes' | 'replies_to';
 
 export interface Issue {
   id: string;              // Hash-based (e.g., "rt-a1b2")
@@ -16,6 +16,8 @@ export interface Issue {
   childIndex: number | null;   // .1, .2 numbering
   jiraKey: string | null;      // Linked Jira ticket
   jiraSyncedAt: Date | null;
+  deferUntil: Date | null;     // Scheduling: defer until date
+  dueAt: Date | null;          // Scheduling: due date
   createdAt: Date;             // UTC always
   updatedAt: Date;             // UTC always
   closedAt: Date | null;       // UTC always

@@ -15,6 +15,8 @@ import { commentCommand } from './commands/comment.js';
 import { loginCommand } from './commands/auth.js';
 import { exportCommand } from './commands/export.js';
 import { importCommand } from './commands/import.js';
+import { decisionCommand } from './commands/decision.js';
+import { doctorCommand } from './commands/doctor.js';
 
 const program = new Command();
 
@@ -39,5 +41,7 @@ program.addCommand(commentCommand);
 program.addCommand(loginCommand);
 program.addCommand(exportCommand);
 program.addCommand(importCommand);
+program.addCommand(decisionCommand);
+program.addCommand(doctorCommand);
 
 program.parse();

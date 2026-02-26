@@ -29,6 +29,8 @@ export interface CreateIssueInput {
   priority?: Priority;
   assignee?: string;
   labels?: string[];
+  deferUntil?: Date;
+  dueAt?: Date;
 }
 
 export async function createIssue(data: CreateIssueInput): Promise<Issue> {
@@ -50,6 +52,8 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     childIndex: null,
     jiraKey: null,
     jiraSyncedAt: null,
+    deferUntil: data.deferUntil ?? null,
+    dueAt: data.dueAt ?? null,
     createdAt: now,
     updatedAt: now,
     closedAt: null,
@@ -104,6 +108,7 @@ export interface ListIssuesFilters {
   assignee?: string;
   type?: IssueType;
   labels?: string[];
+  overdue?: boolean;
 }
 
 export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> {
@@ -128,6 +133,16 @@ export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> 
     constraints.push(where('labels', 'array-contains-any', filters.labels));
   }
 
+  // Overdue filter: fetch all and filter client-side (avoids composite index requirement)
+  if (filters?.overdue) {
+    const now = new Date();
+    constraints.push(orderBy('createdAt', 'desc'));
+    const q = query(colRef, ...constraints);
+    const snapshot = await getDocs(q);
+    const all = snapshot.docs.map((docSnap) => issueConverter.fromFirestore(docSnap));
+    return all.filter((issue) => issue.dueAt !== null && issue.dueAt < now && issue.status !== 'closed');
+  }
+
   constraints.push(orderBy('createdAt', 'desc'));
 
   const q = query(colRef, ...constraints);
@@ -138,7 +153,7 @@ export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> 
 
 export async function updateIssue(
   id: string,
-  updates: Partial<Pick<Issue, 'title' | 'description' | 'type' | 'priority' | 'status' | 'assignee' | 'labels'>>,
+  updates: Partial<Pick<Issue, 'title' | 'description' | 'type' | 'priority' | 'status' | 'assignee' | 'labels' | 'deferUntil' | 'dueAt'>>,
 ): Promise<Issue> {
   const projectId = getCurrentProjectId();
   const userId = getCurrentUserId();
@@ -153,10 +168,18 @@ export async function updateIssue(
     }
   }
 
+  const { deferUntil, dueAt, ...restUpdates } = updates;
   const firestoreUpdates: Record<string, unknown> = {
-    ...updates,
+    ...restUpdates,
     updatedAt: Timestamp.fromDate(now),
   };
+
+  if (deferUntil !== undefined) {
+    firestoreUpdates.deferUntil = deferUntil ? Timestamp.fromDate(deferUntil) : null;
+  }
+  if (dueAt !== undefined) {
+    firestoreUpdates.dueAt = dueAt ? Timestamp.fromDate(dueAt) : null;
+  }
 
   if (updates.title !== undefined || updates.description !== undefined) {
     firestoreUpdates.contentHash = contentHash(
