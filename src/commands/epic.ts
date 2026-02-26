@@ -1,18 +1,9 @@
 import { Command } from 'commander';
-import {
-  doc,
-  getDocs,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  Timestamp,
-} from 'firebase/firestore';
 import type { Priority } from '../types/index.js';
-import { createIssue, getIssue, listIssues } from '../services/issue-service.js';
-import { isEpic, getNextChildIndex } from '../models/epic.js';
-import { issuesCollection } from '../firebase/collections.js';
-import { getCurrentProjectId } from '../utils/config.js';
+import { createIssue, getIssue } from '../services/issue-service.js';
+import { getEpicChildren, addChildToEpic } from '../services/epic-service.js';
+import { isEpic } from '../models/epic.js';
+import { listIssues } from '../services/issue-service.js';
 import { getTimezone } from '../utils/config.js';
 import {
   formatIssueDetail,
@@ -20,7 +11,6 @@ import {
   outputResult,
   statusLabel,
   priorityLabel,
-  formatTimestamp,
 } from '../utils/formatter.js';
 
 const epicCreate = new Command('create')
@@ -59,46 +49,12 @@ const epicAddChild = new Command('add-child')
   .option('--json', 'Output as JSON', false)
   .action(async (epicId: string, childId: string, opts) => {
     try {
-      const epic = await getIssue(epicId);
-
-      if (!isEpic(epic)) {
-        console.error(`Error: Issue ${epicId} is not an epic (type: ${epic.type})`);
-        process.exit(1);
-      }
-
-      const child = await getIssue(childId);
-
-      if (child.parentId) {
-        console.error(`Error: Issue ${childId} already belongs to parent ${child.parentId}`);
-        process.exit(1);
-      }
-
-      // Get existing children to determine next index
-      const projectId = getCurrentProjectId();
-      const colRef = issuesCollection(projectId);
-      const childrenQuery = query(
-        colRef,
-        where('parentId', '==', epicId),
-        orderBy('childIndex', 'asc'),
-      );
-      const childrenSnap = await getDocs(childrenQuery);
-      const existingChildren = childrenSnap.docs.map((d) => d.data() as { childIndex: number | null });
-      const nextIndex = getNextChildIndex(existingChildren as any[]);
-
-      // Update child issue with parentId and childIndex
-      const childDocRef = doc(colRef, childId);
-      await updateDoc(childDocRef, {
-        parentId: epicId,
-        childIndex: nextIndex,
-        updatedAt: Timestamp.fromDate(new Date()),
-      });
-
-      const updated = { ...child, parentId: epicId, childIndex: nextIndex };
+      const updated = await addChildToEpic(epicId, childId);
 
       if (opts.json) {
         outputResult(updated, true);
       } else {
-        console.log(`Added ${childId} to epic ${epicId} as child #${nextIndex}`);
+        console.log(`Added ${childId} to epic ${epicId} as child #${updated.childIndex}`);
       }
     } catch (error) {
       console.error('Error:', error instanceof Error ? error.message : error);
@@ -142,17 +98,7 @@ const epicShow = new Command('show')
         process.exit(1);
       }
 
-      // Query children
-      const projectId = getCurrentProjectId();
-      const colRef = issuesCollection(projectId);
-      const childrenQuery = query(
-        colRef,
-        where('parentId', '==', id),
-        orderBy('childIndex', 'asc'),
-      );
-      const childrenSnap = await getDocs(childrenQuery);
-      const { issueConverter } = await import('../models/issue.js');
-      const children = childrenSnap.docs.map((d) => issueConverter.fromFirestore(d));
+      const children = await getEpicChildren(id);
 
       if (opts.json) {
         outputResult({ epic, children }, true);

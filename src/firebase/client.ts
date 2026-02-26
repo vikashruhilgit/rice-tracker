@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, Firestore } from 'firebase/firestore';
 

@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import {
   doc,
-  setDoc,
   getDoc,
   getDocs,
   updateDoc,
@@ -9,9 +8,11 @@ import {
   where,
   orderBy,
   Timestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import type { Issue, IssueType, IssueStatus, Priority, AuditEvent } from '../types/index.js';
 import { issuesCollection, eventsCollection } from '../firebase/collections.js';
+import { getDb } from '../firebase/client.js';
 import { getCurrentUserId } from '../firebase/auth.js';
 import { generateId } from '../utils/id-generator.js';
 import { getCurrentProjectId } from '../utils/config.js';
@@ -56,10 +57,6 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     contentHash: contentHash(data.title, data.description ?? ''),
   };
 
-  const colRef = issuesCollection(projectId);
-  const docRef = doc(colRef, id);
-  await setDoc(docRef, issueConverter.toFirestore(issue));
-
   const event: AuditEvent = {
     id: generateId(),
     issueId: id,
@@ -68,11 +65,22 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     createdAt: now,
     createdBy: userId,
   };
+
+  // Atomic write: issue + audit event in one batch
+  const db = getDb();
+  const batch = writeBatch(db);
+
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  batch.set(docRef, issueConverter.toFirestore(issue));
+
   const evtRef = doc(eventsCollection(projectId), event.id);
-  await setDoc(evtRef, {
+  batch.set(evtRef, {
     ...event,
     createdAt: Timestamp.fromDate(event.createdAt),
   });
+
+  await batch.commit();
 
   return issue;
 }
@@ -157,10 +165,6 @@ export async function updateIssue(
     );
   }
 
-  const colRef = issuesCollection(projectId);
-  const docRef = doc(colRef, id);
-  await updateDoc(docRef, firestoreUpdates);
-
   const event: AuditEvent = {
     id: generateId(),
     issueId: id,
@@ -169,11 +173,22 @@ export async function updateIssue(
     createdAt: now,
     createdBy: userId,
   };
+
+  // Atomic write: issue update + audit event in one batch
+  const db = getDb();
+  const batch = writeBatch(db);
+
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  batch.update(docRef, firestoreUpdates);
+
   const evtRef = doc(eventsCollection(projectId), event.id);
-  await setDoc(evtRef, {
+  batch.set(evtRef, {
     ...event,
     createdAt: Timestamp.fromDate(event.createdAt),
   });
+
+  await batch.commit();
 
   return { ...existing, ...updates, updatedAt: now };
 }
@@ -199,14 +214,6 @@ export async function closeIssue(id: string): Promise<Issue> {
   const existing = await getIssue(id);
   const now = new Date();
 
-  const colRef = issuesCollection(projectId);
-  const docRef = doc(colRef, id);
-  await updateDoc(docRef, {
-    status: 'closed',
-    closedAt: Timestamp.fromDate(now),
-    updatedAt: Timestamp.fromDate(now),
-  });
-
   const event: AuditEvent = {
     id: generateId(),
     issueId: id,
@@ -215,11 +222,77 @@ export async function closeIssue(id: string): Promise<Issue> {
     createdAt: now,
     createdBy: userId,
   };
+
+  // Atomic write: issue close + audit event in one batch
+  const db = getDb();
+  const batch = writeBatch(db);
+
+  const colRef = issuesCollection(projectId);
+  const docRef = doc(colRef, id);
+  batch.update(docRef, {
+    status: 'closed',
+    closedAt: Timestamp.fromDate(now),
+    updatedAt: Timestamp.fromDate(now),
+  });
+
   const evtRef = doc(eventsCollection(projectId), event.id);
-  await setDoc(evtRef, {
+  batch.set(evtRef, {
     ...event,
     createdAt: Timestamp.fromDate(event.createdAt),
   });
 
+  await batch.commit();
+
   return { ...existing, status: 'closed', closedAt: now, updatedAt: now };
+}
+
+export interface BulkUpsertResult {
+  count: number;
+  created: number;
+  updated: number;
+}
+
+/**
+ * Bulk upsert issues from import. Uses setDoc with merge to create or update.
+ * Firestore WriteBatch supports max 500 operations; splits into chunks if needed.
+ */
+export async function bulkUpsertIssues(issues: Issue[]): Promise<BulkUpsertResult> {
+  const projectId = getCurrentProjectId();
+  const colRef = issuesCollection(projectId);
+  const db = getDb();
+
+  let created = 0;
+  let updated = 0;
+
+  // Check which issues already exist
+  const existingIds = new Set<string>();
+  for (const issue of issues) {
+    const docRef = doc(colRef, issue.id);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      existingIds.add(issue.id);
+    }
+  }
+
+  // Firestore batch limit is 500 operations
+  const BATCH_SIZE = 500;
+  for (let i = 0; i < issues.length; i += BATCH_SIZE) {
+    const chunk = issues.slice(i, i + BATCH_SIZE);
+    const batch = writeBatch(db);
+
+    for (const issue of chunk) {
+      const docRef = doc(colRef, issue.id);
+      batch.set(docRef, issueConverter.toFirestore(issue));
+
+      if (existingIds.has(issue.id)) {
+        updated++;
+      } else {
+        created++;
+      }
+    }
+
+    await batch.commit();
+  }
+
+  return { count: issues.length, created, updated };
 }

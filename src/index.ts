@@ -12,6 +12,9 @@ import { jiraCommand } from './commands/jira/index.js';
 import { epicCommand } from './commands/epic.js';
 import { labelCommand } from './commands/label.js';
 import { commentCommand } from './commands/comment.js';
+import { loginCommand } from './commands/auth.js';
+import { exportCommand } from './commands/export.js';
+import { importCommand } from './commands/import.js';
 
 const program = new Command();
 
@@ -33,5 +36,8 @@ program.addCommand(jiraCommand);
 program.addCommand(epicCommand);
 program.addCommand(labelCommand);
 program.addCommand(commentCommand);
+program.addCommand(loginCommand);
+program.addCommand(exportCommand);
+program.addCommand(importCommand);
 
 program.parse();
