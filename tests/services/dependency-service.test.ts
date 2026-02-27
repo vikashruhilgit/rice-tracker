@@ -334,4 +334,20 @@ describe('computeReadyIssues with labelIds field', () => {
     expect(ready).toHaveLength(10);
     expect(ready.map((i) => i.id)).not.toContain('rt-blocked');
   });
+
+  // TODO(integration): verify batchGetIssues makes ceil(n/30) getDocs calls.
+  // Requires Firestore emulator or getDocs mock — tracked as follow-up.
+  it('chunk boundary: 31 blockers handled correctly by computeReadyIssues', () => {
+    const blockers = Array.from({ length: 31 }, (_, i) =>
+      makeIssue({ id: `rt-blocker-${i}`, status: 'open' }),
+    );
+    const blocked = makeIssue({ id: 'rt-blocked' });
+    const allIssues = [...blockers, blocked];
+    const deps = blockers.map((b) => makeDep(b.id, blocked.id, 'blocks'));
+
+    const ready = computeReadyIssues(allIssues, deps);
+
+    expect(ready).toHaveLength(31);
+    expect(ready.map((i) => i.id)).not.toContain('rt-blocked');
+  });
 });

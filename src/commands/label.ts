@@ -1,11 +1,12 @@
 import { Command } from 'commander';
-import { doc, setDoc, getDocs, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, deleteDoc, updateDoc, writeBatch, query, where } from 'firebase/firestore';
 import type { Label } from '../types/index.js';
 import { validateLabel, labelConverter } from '../models/label.js';
 import { labelsCollection, issuesCollection } from '../firebase/collections.js';
 import { issueConverter } from '../models/issue.js';
 import { generateId } from '../utils/id-generator.js';
 import { getCurrentProjectId } from '../utils/config.js';
+import { getDb } from '../firebase/client.js';
 import { outputResult } from '../utils/formatter.js';
 
 async function resolveLabelByName(projectId: string, name: string): Promise<Label | null> {
@@ -139,11 +140,13 @@ const labelDelete = new Command('delete')
       const issueQuery = query(issueColRef, where('labelIds', 'array-contains', label.labelId));
       const issueSnap = await getDocs(issueQuery);
 
+      const batch = writeBatch(getDb());
       for (const issueDoc of issueSnap.docs) {
         const issueData = issueConverter.fromFirestore(issueDoc);
         const updatedLabelIds = issueData.labelIds.filter((id) => id !== label.labelId);
-        await updateDoc(issueDoc.ref, { labelIds: updatedLabelIds });
+        batch.update(issueDoc.ref, { labelIds: updatedLabelIds });
       }
+      await batch.commit();
 
       if (opts.json) {
         outputResult({ deleted: label.labelId, name: label.name, cascaded: issueSnap.size }, true);

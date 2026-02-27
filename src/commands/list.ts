@@ -7,6 +7,15 @@ import { labelsCollection } from '../firebase/collections.js';
 import { getCurrentProjectId, getTimezone } from '../utils/config.js';
 import { formatIssueTable, outputResult } from '../utils/formatter.js';
 
+function parsePosInt(val: string, flag: string): number {
+  const n = parseInt(val, 10);
+  if (isNaN(n) || n < 0) {
+    console.error(`Error: ${flag} must be a non-negative integer`);
+    process.exit(1);
+  }
+  return n;
+}
+
 async function resolveLabelNameToId(name: string): Promise<string | null> {
   const projectId = getCurrentProjectId();
   const colRef = labelsCollection(projectId);
@@ -55,8 +64,8 @@ export const listCommand = new Command('list')
       const hasPagination = opts.limit !== undefined;
 
       if (hasPagination) {
-        const lim = parseInt(opts.limit, 10);
-        const offset = parseInt(opts.offset, 10);
+        const lim = parsePosInt(opts.limit, '--limit');
+        const offset = parsePosInt(opts.offset, '--offset');
         const result = await paginatedListIssues(filters, { limit: lim, offset });
         if (opts.json) {
           outputResult(result, true);

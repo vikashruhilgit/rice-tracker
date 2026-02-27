@@ -19,7 +19,7 @@ import { getCurrentProjectId } from '../utils/config.js';
 import { issueConverter } from '../models/issue.js';
 
 function contentHash(title: string, description: string): string {
-  return createHash('sha256').update(`${title}|${description}`).digest('hex').slice(0, 16);
+  return createHash('sha256').update(JSON.stringify([title, description])).digest('hex').slice(0, 16);
 }
 
 export interface CreateIssueInput {
