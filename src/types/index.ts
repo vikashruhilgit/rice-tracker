@@ -11,11 +11,13 @@ export interface Issue {
   status: IssueStatus;
   priority: Priority;
   assignee: string | null;
-  labels: string[];
+  labels: string[];         // Legacy: label names (kept for backwards compat)
+  labelIds: string[];       // Preferred: label IDs (rt-xxxx format)
   parentId: string | null;     // Epic hierarchy
   childIndex: number | null;   // .1, .2 numbering
   jiraKey: string | null;      // Linked Jira ticket
   jiraSyncedAt: Date | null;
+  jiraContentHash: string | null; // contentHash snapshot at last Jira sync
   githubNumber: number | null;   // Linked GitHub issue number
   githubSyncedAt: Date | null;   // Last sync timestamp with GitHub
   githubPrUrl: string | null;    // Linked GitHub PR URL
@@ -49,6 +51,7 @@ export interface Comment {
 
 export interface Label {
   id: string;
+  labelId: string;         // Stable nanoid (same format as issue IDs: rt-xxxx)
   name: string;
   color: string;
   description: string;

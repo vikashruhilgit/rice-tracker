@@ -1,9 +1,30 @@
 import { Command } from 'commander';
+import { getDocs, query, where } from 'firebase/firestore';
 import type { IssueType, Priority } from '../types/index.js';
 import { createIssue } from '../services/issue-service.js';
+import { addChildToEpic } from '../services/epic-service.js';
 import { validateIssue } from '../models/issue.js';
+import { labelConverter } from '../models/label.js';
+import { labelsCollection } from '../firebase/collections.js';
+import { getCurrentProjectId } from '../utils/config.js';
 import { getTimezone } from '../utils/config.js';
 import { formatIssueDetail, outputResult } from '../utils/formatter.js';
+
+async function resolveLabelNamesToIds(names: string[]): Promise<string[]> {
+  if (names.length === 0) return [];
+  const projectId = getCurrentProjectId();
+  const colRef = labelsCollection(projectId);
+  const labelIds: string[] = [];
+  for (const name of names) {
+    const q = query(colRef, where('name', '==', name.trim()));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      const label = labelConverter.fromFirestore(snap.docs[0]);
+      labelIds.push(label.labelId);
+    }
+  }
+  return labelIds;
+}
 
 export const createCommand = new Command('create')
   .description('Create a new issue')
@@ -15,6 +36,7 @@ export const createCommand = new Command('create')
   .option('-l, --labels <labels>', 'Comma-separated labels')
   .option('--defer-until <date>', 'Defer until date (ISO 8601 or YYYY-MM-DD)')
   .option('--due <date>', 'Due date (ISO 8601 or YYYY-MM-DD)')
+  .option('--parent <epicId>', 'Attach to parent epic')
   .option('--json', 'Output as JSON', false)
   .action(async (title: string, opts) => {
     try {
@@ -39,16 +61,23 @@ export const createCommand = new Command('create')
         process.exit(1);
       }
 
-      const issue = await createIssue({
+      const labelIds = labels ? await resolveLabelNamesToIds(labels) : undefined;
+
+      let issue = await createIssue({
         title,
         description: opts.description,
         type,
         priority,
         assignee: opts.assignee,
         labels,
+        labelIds,
         deferUntil,
         dueAt,
       });
+
+      if (opts.parent) {
+        issue = await addChildToEpic(opts.parent as string, issue.issueId);
+      }
 
       if (opts.json) {
         outputResult(issue, true);

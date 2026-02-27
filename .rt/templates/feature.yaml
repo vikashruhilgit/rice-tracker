@@ -1,0 +1,32 @@
+name: feature
+description: "Standard feature development workflow"
+
+variables:
+  - name: title
+    required: true
+  - name: priority
+    default: P2
+
+issues:
+  - id: spec
+    title: "Spec: {{title}}"
+    type: task
+    priority: "{{priority}}"
+    description: |
+      Write the specification and acceptance criteria for: {{title}}
+
+  - id: impl
+    title: "Implement: {{title}}"
+    type: task
+    priority: "{{priority}}"
+    depends_on:
+      - id: spec
+        type: blocks
+
+  - id: review
+    title: "Review: {{title}}"
+    type: task
+    priority: "{{priority}}"
+    depends_on:
+      - id: impl
+        type: blocks

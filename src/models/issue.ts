@@ -31,12 +31,15 @@ export const issueConverter = {
       updatedAt: data.updatedAt?.toDate() ?? new Date(),
       closedAt: data.closedAt?.toDate() ?? null,
       jiraSyncedAt: data.jiraSyncedAt?.toDate() ?? null,
+      jiraContentHash: data.jiraContentHash ?? null,
       githubNumber: data.githubNumber ?? null,
       githubSyncedAt: data.githubSyncedAt?.toDate() ?? null,
       githubPrUrl: data.githubPrUrl ?? null,
       githubContentHashAtSync: data.githubContentHashAtSync ?? null,
       deferUntil: data.deferUntil?.toDate() ?? null,
       dueAt: data.dueAt?.toDate() ?? null,
+      labels: data.labels ?? [],
+      labelIds: data.labelIds ?? [],
     } as Issue;
   },
 };

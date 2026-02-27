@@ -16,6 +16,30 @@ import { validateDependency, dependencyConverter } from '../models/dependency.js
 import { getIssue } from './issue-service.js';
 import { issueConverter } from '../models/issue.js';
 
+// Firestore `in` queries are limited to 30 items per batch
+const FIRESTORE_IN_LIMIT = 30;
+
+/**
+ * Batch-fetch issues by their IDs using Firestore `in` queries.
+ * Splits into chunks of 30 to respect Firestore limits.
+ */
+async function batchGetIssues(projectId: string, ids: string[]): Promise<Issue[]> {
+  if (ids.length === 0) return [];
+  const colRef = issuesCollection(projectId);
+  const issues: Issue[] = [];
+
+  for (let i = 0; i < ids.length; i += FIRESTORE_IN_LIMIT) {
+    const chunk = ids.slice(i, i + FIRESTORE_IN_LIMIT);
+    const q = query(colRef, where('id', 'in', chunk));
+    const snap = await getDocs(q);
+    for (const docSnap of snap.docs) {
+      issues.push(issueConverter.fromFirestore(docSnap));
+    }
+  }
+
+  return issues;
+}
+
 // ── Pure graph functions (exported for testing) ──────────────────────
 
 /**
@@ -217,12 +241,8 @@ export async function getBlockers(issueId: string): Promise<Issue[]> {
   const snapshot = await getDocs(q);
   const deps = snapshot.docs.map((d) => dependencyConverter.fromFirestore(d));
 
-  const blockerIssues: Issue[] = [];
-  for (const dep of deps) {
-    const issue = await getIssue(dep.fromId);
-    blockerIssues.push(issue);
-  }
-  return blockerIssues;
+  const blockerIds = deps.map((d) => d.fromId);
+  return batchGetIssues(projectId, blockerIds);
 }
 
 export async function getBlocking(issueId: string): Promise<Issue[]> {
@@ -238,15 +258,11 @@ export async function getBlocking(issueId: string): Promise<Issue[]> {
   const snapshot = await getDocs(q);
   const deps = snapshot.docs.map((d) => dependencyConverter.fromFirestore(d));
 
-  const blockedIssues: Issue[] = [];
-  for (const dep of deps) {
-    const issue = await getIssue(dep.toId);
-    blockedIssues.push(issue);
-  }
-  return blockedIssues;
+  const blockedIds = deps.map((d) => d.toId);
+  return batchGetIssues(projectId, blockedIds);
 }
 
-export async function getReadyIssues(): Promise<Issue[]> {
+export async function getReadyIssues(limitCount?: number): Promise<Issue[]> {
   const projectId = getCurrentProjectId();
 
   // Fetch all issues
@@ -259,5 +275,6 @@ export async function getReadyIssues(): Promise<Issue[]> {
   const depSnap = await getDocs(depColRef);
   const allDeps = depSnap.docs.map((d) => dependencyConverter.fromFirestore(d));
 
-  return computeReadyIssues(allIssues, allDeps);
+  const ready = computeReadyIssues(allIssues, allDeps);
+  return limitCount !== undefined ? ready.slice(0, limitCount) : ready;
 }
