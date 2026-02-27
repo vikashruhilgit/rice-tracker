@@ -1,12 +1,28 @@
 import { Command } from 'commander';
-import { doc, setDoc, getDocs, deleteDoc, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDocs, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
 import type { Label } from '../types/index.js';
 import { validateLabel, labelConverter } from '../models/label.js';
-import { labelsCollection } from '../firebase/collections.js';
-import { getIssue, updateIssue } from '../services/issue-service.js';
+import { labelsCollection, issuesCollection } from '../firebase/collections.js';
+import { issueConverter } from '../models/issue.js';
 import { generateId } from '../utils/id-generator.js';
 import { getCurrentProjectId } from '../utils/config.js';
 import { outputResult } from '../utils/formatter.js';
+
+async function resolveLabelByName(projectId: string, name: string): Promise<Label | null> {
+  const colRef = labelsCollection(projectId);
+  const q = query(colRef, where('name', '==', name));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return labelConverter.fromFirestore(snap.docs[0]);
+}
+
+async function resolveLabelById(projectId: string, labelId: string): Promise<{ docId: string; label: Label } | null> {
+  const colRef = labelsCollection(projectId);
+  const q = query(colRef, where('labelId', '==', labelId));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { docId: snap.docs[0].id, label: labelConverter.fromFirestore(snap.docs[0]) };
+}
 
 const labelCreate = new Command('create')
   .description('Create a new label')
@@ -39,8 +55,10 @@ const labelCreate = new Command('create')
         process.exit(1);
       }
 
+      const labelId = generateId();
       const label: Label = {
-        id: generateId(),
+        id: labelId,
+        labelId,
         name,
         color: opts.color,
         description: opts.description,
@@ -52,7 +70,7 @@ const labelCreate = new Command('create')
       if (opts.json) {
         outputResult(label, true);
       } else {
-        console.log(`Label "${name}" created (${label.color})`);
+        console.log(`Label "${name}" created (${label.color}) — ID: ${labelId}`);
       }
     } catch (error) {
       console.error('Error:', error instanceof Error ? error.message : error);
@@ -77,7 +95,7 @@ const labelList = new Command('list')
           console.log('No labels found.');
         } else {
           for (const label of labels) {
-            console.log(`  ${label.name} (${label.color})${label.description ? ' - ' + label.description : ''}`);
+            console.log(`  ${label.labelId}  ${label.name} (${label.color})${label.description ? ' - ' + label.description : ''}`);
           }
         }
       }
@@ -88,28 +106,88 @@ const labelList = new Command('list')
   });
 
 const labelDelete = new Command('delete')
-  .description('Delete a label')
-  .argument('<name>', 'Label name')
+  .description('Delete a label by ID and cascade removal from all issues')
+  .argument('<labelId>', 'Label ID (rt-xxxx format) or label name')
   .option('--json', 'Output as JSON', false)
-  .action(async (name: string, opts) => {
+  .action(async (labelId: string, opts) => {
     try {
       const projectId = getCurrentProjectId();
-      const colRef = labelsCollection(projectId);
-      const q = query(colRef, where('name', '==', name));
-      const snapshot = await getDocs(q);
 
-      if (snapshot.empty) {
-        console.error(`Error: Label "${name}" not found`);
+      // Resolve: try by labelId first, then by name for backwards compat
+      let resolved = await resolveLabelById(projectId, labelId);
+      if (!resolved) {
+        // Try by name
+        const byName = await resolveLabelByName(projectId, labelId);
+        if (byName) {
+          resolved = { docId: byName.id, label: byName };
+        }
+      }
+
+      if (!resolved) {
+        console.error(`Error: Label "${labelId}" not found`);
         process.exit(1);
       }
 
-      const labelDoc = snapshot.docs[0];
-      await deleteDoc(labelDoc.ref);
+      const { docId, label } = resolved;
+      const colRef = labelsCollection(projectId);
+
+      // Delete the label document
+      await deleteDoc(doc(colRef, docId));
+
+      // Cascade: remove labelId from all issues that reference it
+      const issueColRef = issuesCollection(projectId);
+      const issueQuery = query(issueColRef, where('labelIds', 'array-contains', label.labelId));
+      const issueSnap = await getDocs(issueQuery);
+
+      for (const issueDoc of issueSnap.docs) {
+        const issueData = issueConverter.fromFirestore(issueDoc);
+        const updatedLabelIds = issueData.labelIds.filter((id) => id !== label.labelId);
+        await updateDoc(issueDoc.ref, { labelIds: updatedLabelIds });
+      }
 
       if (opts.json) {
-        outputResult({ deleted: name }, true);
+        outputResult({ deleted: label.labelId, name: label.name, cascaded: issueSnap.size }, true);
       } else {
-        console.log(`Label "${name}" deleted`);
+        console.log(`Label "${label.name}" (${label.labelId}) deleted${issueSnap.size > 0 ? `, removed from ${issueSnap.size} issue(s)` : ''}`);
+      }
+    } catch (error) {
+      console.error('Error:', error instanceof Error ? error.message : error);
+      process.exit(1);
+    }
+  });
+
+const labelRename = new Command('rename')
+  .description('Rename a label by ID (issues keep their reference via ID — no cascade needed)')
+  .argument('<labelId>', 'Label ID (rt-xxxx format)')
+  .argument('<newName>', 'New label name')
+  .option('--json', 'Output as JSON', false)
+  .action(async (labelId: string, newName: string, opts) => {
+    try {
+      const projectId = getCurrentProjectId();
+      const resolved = await resolveLabelById(projectId, labelId);
+
+      if (!resolved) {
+        console.error(`Error: Label "${labelId}" not found`);
+        process.exit(1);
+      }
+
+      const colRef = labelsCollection(projectId);
+
+      // Check no duplicate name
+      const dupQuery = query(colRef, where('name', '==', newName));
+      const dupSnap = await getDocs(dupQuery);
+      if (!dupSnap.empty && dupSnap.docs[0].id !== resolved.docId) {
+        console.error(`Error: Label "${newName}" already exists`);
+        process.exit(1);
+      }
+
+      await updateDoc(doc(colRef, resolved.docId), { name: newName });
+      const updated = { ...resolved.label, name: newName };
+
+      if (opts.json) {
+        outputResult(updated, true);
+      } else {
+        console.log(`Label "${resolved.label.name}" renamed to "${newName}" (ID: ${labelId})`);
       }
     } catch (error) {
       console.error('Error:', error instanceof Error ? error.message : error);
@@ -118,26 +196,44 @@ const labelDelete = new Command('delete')
   });
 
 const labelAdd = new Command('add')
-  .description('Add a label to an issue')
+  .description('Add a label to an issue (by label name)')
   .argument('<issueId>', 'Issue ID')
   .argument('<labelName>', 'Label name')
   .option('--json', 'Output as JSON', false)
   .action(async (issueId: string, labelName: string, opts) => {
     try {
-      const issue = await getIssue(issueId);
+      const projectId = getCurrentProjectId();
+      const label = await resolveLabelByName(projectId, labelName);
 
-      if (issue.labels.includes(labelName)) {
+      if (!label) {
+        console.error(`Error: Label "${labelName}" not found. Create it first with: rt label create "${labelName}"`);
+        process.exit(1);
+      }
+
+      const issueColRef = issuesCollection(projectId);
+      const issueQuery = query(issueColRef, where('id', '==', issueId));
+      const issueSnap = await getDocs(issueQuery);
+
+      if (issueSnap.empty) {
+        console.error(`Error: Issue ${issueId} not found`);
+        process.exit(1);
+      }
+
+      const issueDoc = issueSnap.docs[0];
+      const issueData = issueConverter.fromFirestore(issueDoc);
+
+      if (issueData.labelIds.includes(label.labelId)) {
         console.error(`Error: Issue ${issueId} already has label "${labelName}"`);
         process.exit(1);
       }
 
-      const updatedLabels = [...issue.labels, labelName];
-      const updated = await updateIssue(issueId, { labels: updatedLabels });
+      const updatedLabelIds = [...issueData.labelIds, label.labelId];
+      await updateDoc(issueDoc.ref, { labelIds: updatedLabelIds });
 
       if (opts.json) {
-        outputResult(updated, true);
+        outputResult({ ...issueData, labelIds: updatedLabelIds }, true);
       } else {
-        console.log(`Added label "${labelName}" to ${issueId}`);
+        console.log(`Added label "${labelName}" (${label.labelId}) to ${issueId}`);
       }
     } catch (error) {
       console.error('Error:', error instanceof Error ? error.message : error);
@@ -146,24 +242,42 @@ const labelAdd = new Command('add')
   });
 
 const labelRemove = new Command('remove')
-  .description('Remove a label from an issue')
+  .description('Remove a label from an issue (by label name)')
   .argument('<issueId>', 'Issue ID')
   .argument('<labelName>', 'Label name')
   .option('--json', 'Output as JSON', false)
   .action(async (issueId: string, labelName: string, opts) => {
     try {
-      const issue = await getIssue(issueId);
+      const projectId = getCurrentProjectId();
+      const label = await resolveLabelByName(projectId, labelName);
 
-      if (!issue.labels.includes(labelName)) {
+      if (!label) {
+        console.error(`Error: Label "${labelName}" not found`);
+        process.exit(1);
+      }
+
+      const issueColRef = issuesCollection(projectId);
+      const issueQuery = query(issueColRef, where('id', '==', issueId));
+      const issueSnap = await getDocs(issueQuery);
+
+      if (issueSnap.empty) {
+        console.error(`Error: Issue ${issueId} not found`);
+        process.exit(1);
+      }
+
+      const issueDoc = issueSnap.docs[0];
+      const issueData = issueConverter.fromFirestore(issueDoc);
+
+      if (!issueData.labelIds.includes(label.labelId)) {
         console.error(`Error: Issue ${issueId} does not have label "${labelName}"`);
         process.exit(1);
       }
 
-      const updatedLabels = issue.labels.filter((l) => l !== labelName);
-      const updated = await updateIssue(issueId, { labels: updatedLabels });
+      const updatedLabelIds = issueData.labelIds.filter((id) => id !== label.labelId);
+      await updateDoc(issueDoc.ref, { labelIds: updatedLabelIds });
 
       if (opts.json) {
-        outputResult(updated, true);
+        outputResult({ ...issueData, labelIds: updatedLabelIds }, true);
       } else {
         console.log(`Removed label "${labelName}" from ${issueId}`);
       }
@@ -178,5 +292,6 @@ export const labelCommand = new Command('label')
   .addCommand(labelCreate)
   .addCommand(labelList)
   .addCommand(labelDelete)
+  .addCommand(labelRename)
   .addCommand(labelAdd)
   .addCommand(labelRemove);

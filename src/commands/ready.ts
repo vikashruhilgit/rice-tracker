@@ -7,6 +7,7 @@ import { formatIssueTable, outputResult } from '../utils/formatter.js';
 export const readyCommand = new Command('ready')
   .description('Show issues ready to work on (no unresolved blockers)')
   .option('-p, --priority <n>', 'Filter by priority (0-3)')
+  .option('--limit <n>', 'Maximum number of ready issues to return')
   .option('--json', 'Output as JSON', false)
   .action(async (opts) => {
     try {
@@ -15,6 +16,10 @@ export const readyCommand = new Command('ready')
       if (opts.priority !== undefined) {
         const priority = parseInt(opts.priority, 10) as Priority;
         issues = issues.filter((i) => i.priority === priority);
+      }
+
+      if (opts.limit !== undefined) {
+        issues = issues.slice(0, parseInt(opts.limit, 10));
       }
 
       if (opts.json) {

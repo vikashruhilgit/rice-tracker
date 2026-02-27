@@ -1,0 +1,25 @@
+name: bug-report
+description: "Standard bug report workflow"
+
+variables:
+  - name: title
+    required: true
+  - name: severity
+    default: P2
+
+issues:
+  - id: root
+    title: "Bug: {{title}}"
+    type: bug
+    priority: "{{severity}}"
+    labels: [bug]
+    description: |
+      Reported bug. Severity: {{severity}}.
+
+  - id: repro
+    title: "Reproduce: {{title}}"
+    type: task
+    priority: P2
+    depends_on:
+      - id: root
+        type: blocks

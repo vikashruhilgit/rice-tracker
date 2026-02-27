@@ -9,5 +9,11 @@ export function validateLabel(data: Partial<Label>): string[] {
 
 export const labelConverter = {
   toFirestore(label: Label) { return { ...label }; },
-  fromFirestore(snapshot: { data: () => Record<string, any> }): Label { return snapshot.data() as Label; },
+  fromFirestore(snapshot: { data: () => Record<string, any> }): Label {
+    const data = snapshot.data();
+    return {
+      ...data,
+      labelId: data.labelId ?? data.id,  // fallback for legacy docs without labelId
+    } as Label;
+  },
 };

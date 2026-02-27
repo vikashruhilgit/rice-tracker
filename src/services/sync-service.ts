@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { JiraConfig, JiraFieldMapping } from '../types/jira.js';
 import type { Issue, IssueType, Priority, IssueStatus } from '../types/index.js';
 import {
@@ -24,9 +25,14 @@ export interface SyncResult {
   direction: 'push' | 'pull';
 }
 
+function computeContentHash(title: string, description: string): string {
+  return createHash('sha256').update(`${title}|${description}`).digest('hex').slice(0, 16);
+}
+
 /**
  * Push a single rt issue to Jira.
  * Creates a new Jira issue if no jiraKey exists; updates if it does.
+ * Skips the push if the issue's contentHash matches the jiraContentHash (no changes since last sync).
  */
 export async function pushToJira(issueId: string): Promise<SyncResult> {
   const config = getJiraConfig();
@@ -34,15 +40,20 @@ export async function pushToJira(issueId: string): Promise<SyncResult> {
   const issue = await getIssue(issueId);
 
   if (issue.jiraKey) {
+    // Skip if content hasn't changed since last Jira sync
+    if (issue.jiraContentHash && issue.jiraContentHash === issue.contentHash) {
+      return { action: 'skipped', issueId, jiraKey: issue.jiraKey, direction: 'push' };
+    }
+
     await updateJiraIssue(issue.jiraKey, issue, config, mapping);
     const now = new Date();
-    await updateIssueJiraFields(issueId, issue.jiraKey, now);
+    await updateIssueJiraFields(issueId, issue.jiraKey, now, issue.contentHash);
     return { action: 'updated', issueId, jiraKey: issue.jiraKey, direction: 'push' };
   }
 
   const jiraKey = await createJiraIssue(issue, config, mapping);
   const now = new Date();
-  await updateIssueJiraFields(issueId, jiraKey, now);
+  await updateIssueJiraFields(issueId, jiraKey, now, issue.contentHash);
   return { action: 'created', issueId, jiraKey, direction: 'push' };
 }
 
@@ -141,6 +152,13 @@ export async function pullFromJira(jql?: string): Promise<SyncResult[]> {
     const existingIssue = jiraKeyToIssue.get(jiraKey);
 
     if (existingIssue) {
+      // Skip if Jira content hash matches the local issue's current content hash
+      const incomingHash = computeContentHash(mapped.title, mapped.description);
+      if (existingIssue.jiraContentHash && existingIssue.jiraContentHash === incomingHash) {
+        results.push({ action: 'skipped', issueId: existingIssue.id, jiraKey, direction: 'pull' });
+        continue;
+      }
+
       await updateIssue(existingIssue.id, {
         title: mapped.title,
         description: mapped.description,
@@ -148,7 +166,7 @@ export async function pullFromJira(jql?: string): Promise<SyncResult[]> {
         priority: mapped.priority,
         status: mapped.status,
       });
-      await updateIssueJiraFields(existingIssue.id, jiraKey, new Date());
+      await updateIssueJiraFields(existingIssue.id, jiraKey, new Date(), incomingHash);
       results.push({ action: 'updated', issueId: existingIssue.id, jiraKey, direction: 'pull' });
     } else {
       const newIssue = await createIssue({

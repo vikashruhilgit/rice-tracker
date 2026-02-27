@@ -29,6 +29,7 @@ export interface CreateIssueInput {
   priority?: Priority;
   assignee?: string;
   labels?: string[];
+  labelIds?: string[];
   deferUntil?: Date;
   dueAt?: Date;
 }
@@ -48,10 +49,12 @@ export async function createIssue(data: CreateIssueInput): Promise<Issue> {
     priority: data.priority ?? 2,
     assignee: data.assignee ?? null,
     labels: data.labels ?? [],
+    labelIds: data.labelIds ?? [],
     parentId: null,
     childIndex: null,
     jiraKey: null,
     jiraSyncedAt: null,
+    jiraContentHash: null,
     githubNumber: null,
     githubSyncedAt: null,
     githubPrUrl: null,
@@ -111,8 +114,20 @@ export interface ListIssuesFilters {
   priority?: Priority;
   assignee?: string;
   type?: IssueType;
-  labels?: string[];
+  labels?: string[];      // Legacy: filter by label names
+  labelIds?: string[];    // Preferred: filter by label IDs
   overdue?: boolean;
+}
+
+export interface PaginationOptions {
+  limit?: number;
+  offset?: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  hasMore: boolean;
 }
 
 export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> {
@@ -133,7 +148,9 @@ export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> 
   if (filters?.type) {
     constraints.push(where('type', '==', filters.type));
   }
-  if (filters?.labels && filters.labels.length > 0) {
+  if (filters?.labelIds && filters.labelIds.length > 0) {
+    constraints.push(where('labelIds', 'array-contains-any', filters.labelIds));
+  } else if (filters?.labels && filters.labels.length > 0) {
     constraints.push(where('labels', 'array-contains-any', filters.labels));
   }
 
@@ -163,9 +180,22 @@ export async function listIssues(filters?: ListIssuesFilters): Promise<Issue[]> 
   return issues;
 }
 
+export async function paginatedListIssues(
+  filters?: ListIssuesFilters,
+  pagination?: PaginationOptions,
+): Promise<PaginatedResult<Issue>> {
+  // Fetch all matching issues first (pagination applied client-side after filtering)
+  const allIssues = await listIssues(filters);
+  const total = allIssues.length;
+  const offset = pagination?.offset ?? 0;
+  const lim = pagination?.limit;
+  const items = lim !== undefined ? allIssues.slice(offset, offset + lim) : allIssues.slice(offset);
+  return { items, total, hasMore: lim !== undefined ? offset + lim < total : false };
+}
+
 export async function updateIssue(
   id: string,
-  updates: Partial<Pick<Issue, 'title' | 'description' | 'type' | 'priority' | 'status' | 'assignee' | 'labels' | 'deferUntil' | 'dueAt'>>,
+  updates: Partial<Pick<Issue, 'title' | 'description' | 'type' | 'priority' | 'status' | 'assignee' | 'labels' | 'labelIds' | 'deferUntil' | 'dueAt'>>,
 ): Promise<Issue> {
   const projectId = getCurrentProjectId();
   const userId = getCurrentUserId();
@@ -232,15 +262,20 @@ export async function updateIssueJiraFields(
   id: string,
   jiraKey: string,
   jiraSyncedAt: Date,
+  jiraContentHash?: string,
 ): Promise<void> {
   const projectId = getCurrentProjectId();
   const colRef = issuesCollection(projectId);
   const docRef = doc(colRef, id);
-  await updateDoc(docRef, {
+  const fields: Record<string, unknown> = {
     jiraKey,
     jiraSyncedAt: Timestamp.fromDate(jiraSyncedAt),
     updatedAt: Timestamp.fromDate(new Date()),
-  });
+  };
+  if (jiraContentHash !== undefined) {
+    fields.jiraContentHash = jiraContentHash;
+  }
+  await updateDoc(docRef, fields);
 }
 
 export async function updateIssueGithubFields(
