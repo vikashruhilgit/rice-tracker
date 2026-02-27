@@ -3,7 +3,7 @@
 [![CI](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/ci.yml)
 [![Claude Code Review](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/claude-code-review.yml/badge.svg)](https://github.com/vikashruhilgit/rice-tracker/actions/workflows/claude-code-review.yml)
 
-A Firebase-powered issue tracker CLI built for teams and AI agents. Cloud-first, real-time sync, with dependency graphs and Jira integration.
+A Firebase-powered issue tracker CLI built for teams and AI agents. Cloud-first, real-time sync, with dependency graphs, Jira integration, GitHub integration, and MCP server support.
 
 | Feature | rt | Traditional trackers |
 |---------|-----|---------------------|
@@ -13,6 +13,8 @@ A Firebase-powered issue tracker CLI built for teams and AI agents. Cloud-first,
 | **Agent-friendly** | `--json` on every command | Usually not |
 | **Dependencies** | Transitive graph resolution | Flat or none |
 | **Jira** | Bi-directional sync | One-way or none |
+| **GitHub** | Push/pull issues, link PRs | One-way or none |
+| **MCP Server** | Claude Code native integration | N/A |
 
 ---
 
@@ -187,6 +189,13 @@ rt create "Set up CI pipeline" -p 1 -t task
 rt create "Fix login redirect bug" -p 0 -t bug
 rt create "Add dark mode" -p 3
 
+# Create with due date and defer
+rt create "Quarterly review" --due 2026-03-31
+rt create "Start planning" --defer-until 2026-03-01
+
+# Attach an issue directly to an epic on creation
+rt create "JWT token service" -p 1 --parent rt-x1y2
+
 # List all issues
 rt list
 
@@ -213,10 +222,13 @@ rt close rt-a1b2c3
 # Create
 rt create <title> [options]
   -d, --description <text>     Issue description
-  -t, --type <type>            task | bug | epic | message (default: task)
+  -t, --type <type>            task | bug | epic | message | decision (default: task)
   -p, --priority <n>           0=critical, 1=high, 2=medium, 3=low (default: 2)
   -a, --assignee <user>        Assign to user
   -l, --labels <labels>        Comma-separated labels
+  --due <date>                 Due date (YYYY-MM-DD)
+  --defer-until <date>         Defer until date (YYYY-MM-DD)
+  --parent <epicId>            Attach to an epic on creation
   --json                       JSON output
 
 # List
@@ -226,6 +238,9 @@ rt list [options]
   -a, --assignee <user>        Filter by assignee
   -t, --type <type>            Filter by type
   -l, --label <label>          Filter by label
+  --overdue                    Show only issues past their due date
+  --limit <n>                  Maximum number of results
+  --offset <n>                 Skip first N results (for pagination)
   --json                       JSON output
 
 # Show details
@@ -239,10 +254,27 @@ rt update <id> [options]
   -p, --priority <n>           Change priority
   -s, --status <status>        Change status
   -a, --assignee <user>        Change assignee
+  --due <date>                 Set due date (YYYY-MM-DD)
+  --defer-until <date>         Set defer-until date (YYYY-MM-DD)
   --json                       JSON output
 
 # Close
 rt close <id> [--json]
+```
+
+### Scheduling
+
+Use `--due` and `--defer-until` to manage time-sensitive work.
+
+```bash
+# Create with a due date
+rt create "Quarterly review" --due 2026-03-31
+
+# Defer an issue until a future date (won't appear in default list until then)
+rt create "Start planning" --defer-until 2026-03-01
+
+# Find issues past their due date
+rt list --overdue
 ```
 
 ### Dependencies
@@ -251,7 +283,7 @@ Issues can block each other. The `ready` command uses transitive dependency reso
 
 ```bash
 # Add a dependency (A blocks B)
-rt dep add <from-id> <to-id> [--type blocks|related|parent_child|discovered_from]
+rt dep add <from-id> <to-id> [--type blocks|related|parent_child|discovered_from|duplicates|supersedes|replies_to]
 
 # Remove a dependency
 rt dep remove <from-id> <to-id>
@@ -260,7 +292,7 @@ rt dep remove <from-id> <to-id>
 rt dep list <id>
 
 # Find issues with no unresolved blockers
-rt ready [--priority <n>] [--json]
+rt ready [--priority <n>] [--limit <n>] [--json]
 ```
 
 **Dependency types:**
@@ -268,6 +300,9 @@ rt ready [--priority <n>] [--json]
 - `related` — informational link, no blocking
 - `parent_child` — hierarchical relationship
 - `discovered_from` — traceability link
+- `duplicates` — marks an issue as a duplicate of another
+- `supersedes` — marks an issue as superseding another
+- `replies_to` — marks an issue as a reply to another
 
 **Example:**
 
@@ -301,14 +336,14 @@ rt epic list [--json]
 rt epic show <id> [--json]
 ```
 
-**Example:**
+**One-step creation with `--parent`:**
 
 ```bash
 rt epic create "User Authentication" -p 1   # rt-x1y2
-rt create "JWT token service" -p 1          # rt-a1b2
-rt create "Login endpoint" -p 1             # rt-c3d4
-rt epic add-child rt-x1y2 rt-a1b2          # child #1
-rt epic add-child rt-x1y2 rt-c3d4          # child #2
+
+# Attach new issues directly to the epic on creation
+rt create "JWT token service" -p 1 --parent rt-x1y2
+rt create "Login endpoint" -p 1 --parent rt-x1y2
 
 rt epic show rt-x1y2
 # User Authentication (epic)
@@ -327,6 +362,9 @@ rt label create <name> [--color #hex] [--description text] [--json]
 
 # List all labels
 rt label list [--json]
+
+# Rename a label
+rt label rename <labelId> <newName> [--json]
 
 # Delete a label
 rt label delete <name> [--json]
@@ -367,6 +405,96 @@ rt config get timezone
 # List all config
 rt config list [--json]
 ```
+
+### Decisions
+
+Record architectural decisions (ADRs) as first-class issues.
+
+```bash
+# Create a decision record
+rt decision create "Use PostgreSQL over MongoDB" -d "See ADR-001" [--json]
+
+# List all decisions
+rt decision list [--json]
+
+# Show a decision
+rt decision show <id> [--json]
+```
+
+Decisions are stored as issues with `type: decision` and appear in `rt list --type decision`.
+
+### Templates
+
+Quickly create issues from pre-defined YAML templates stored in `.rt/templates/`.
+
+```bash
+# List available templates
+rt template list
+
+# Apply a template (with optional variable substitution)
+rt template apply bug-report --var title="Login crash" --var priority=0
+```
+
+Templates live in `.rt/templates/` as YAML files. Variables are substituted using `--var key=value`.
+
+### Data Management
+
+Export and import issues as JSONL for backup, migration, or bulk operations.
+
+```bash
+# Export all issues to a JSONL file
+rt export --output issues.jsonl
+
+# Import issues from a JSONL file (upsert: creates or updates)
+rt import --file issues.jsonl
+```
+
+### Memory Compaction
+
+Archive closed issues to keep your active list clean. Archived issues are stored as stubs with a full semantic summary.
+
+```bash
+# Dry-run: show what would be archived (default)
+rt compact
+
+# Archive issues closed more than 60 days ago
+rt compact --older-than 60d --apply
+
+# View an archived stub (includes full summary)
+rt compact show <id>
+```
+
+- Default period: 30 days closed
+- Without `--apply`, the command is a dry-run and makes no changes
+- Archived stubs live in the `archived/` Firestore collection
+
+### Health Check
+
+Detect and optionally repair consistency issues in your issue graph.
+
+```bash
+# Check for problems (read-only)
+rt doctor
+
+# Auto-repair fixable issues
+rt doctor --fix
+```
+
+Detects:
+- Orphaned dependency references
+- Orphaned label references
+- Orphaned parent references
+- Dependency cycles
+
+### Authentication
+
+Sign in when your Firestore security rules require authentication.
+
+```bash
+rt login --email you@example.com --password yourpassword
+```
+
+Required when Firestore rules enforce `request.auth != null`. Without auth, rt records `anonymous` as the user.
 
 ### Jira Integration
 
@@ -434,6 +562,71 @@ rt jira map reset [--json]
 | epic | Epic |
 | message | Story |
 
+### GitHub Integration
+
+Sync issues between rt and GitHub Issues, and link pull requests.
+
+#### Connect to GitHub
+
+```bash
+# One-time connection (token stored in config)
+rt github connect --owner myorg --repo myrepo --token ghp_xxx
+
+# Or set GITHUB_TOKEN in your environment instead of --token
+export GITHUB_TOKEN=ghp_xxx
+rt github connect --owner myorg --repo myrepo
+```
+
+#### Push and Pull
+
+```bash
+# Push a single rt issue to GitHub Issues
+rt github push rt-a1b2c3
+
+# Push all open rt issues to GitHub
+rt github push --all
+
+# Pull all open GitHub Issues into rt
+rt github pull
+
+# Pull with a GitHub search filter
+rt github pull --filter "is:open label:bug"
+
+# Overwrite existing issues on conflict
+rt github pull --force
+```
+
+#### Link a Pull Request
+
+```bash
+# Link a GitHub PR to an rt issue
+rt github link-pr rt-a1b2c3 42
+```
+
+### MCP Server
+
+rt includes an MCP (Model Context Protocol) server that exposes your issue tracker as tools for AI agents like Claude Code.
+
+```bash
+# Start the MCP server on stdio
+rt mcp
+```
+
+**Add to Claude Code** (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "rt": {
+      "command": "rt",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Exposed tools: issue CRUD, comments, dependencies, labels, export, compact.
+
 ---
 
 ## Agent / Automation Usage
@@ -453,6 +646,14 @@ rt create "Task A" --json | jq -r '.id'    # rt-aaa
 rt create "Task B" --json | jq -r '.id'    # rt-bbb
 rt dep add rt-aaa rt-bbb
 rt ready --json                             # returns [rt-aaa]
+
+# Export all issues and import into another project
+rt export --output issues.jsonl
+rt import --file issues.jsonl
+
+# Sync GitHub Issues and push back
+rt github pull --filter "is:open label:bug"
+rt github push --all
 ```
 
 ---
@@ -480,36 +681,12 @@ projects/{projectId}/
   comments/{commentId}     # Issue comments
   labels/{labelId}         # Label definitions
   events/{eventId}         # Audit trail (auto-generated)
+  archived/{docId}         # Compacted stubs (closed issues summary)
 ```
 
 **Timestamps** are stored as UTC `Timestamp` objects and converted to local timezone for display.
 
 **IDs** are hash-based (`rt-xxxxxx`) using nanoid, collision-resistant and URL-safe.
-
----
-
-## Publishing to npm
-
-If you are a contributor and want to publish a new version:
-
-```bash
-# 1. Update version in package.json
-npm version patch    # or minor / major
-
-# 2. Build (runs automatically via prepublishOnly)
-npm run build
-
-# 3. Login to npm
-npm login
-
-# 4. Publish
-npm publish
-
-# 5. Verify
-npm info rice-tracker
-```
-
-After publishing, anyone can install with `npm install -g rice-tracker`.
 
 ---
 
@@ -552,17 +729,32 @@ src/
     epic.ts                 # rt epic
     label.ts                # rt label
     comment.ts              # rt comment
+    decision.ts             # rt decision
+    template.ts             # rt template
+    compact.ts              # rt compact
+    doctor.ts               # rt doctor
+    auth.ts                 # rt login
+    export.ts               # rt export
+    import.ts               # rt import
     jira/                   # rt jira *
       connect.ts
       push.ts
       pull.ts
       sync.ts
       map.ts
+    github/                 # rt github *
+      connect.ts
+      push.ts
+      pull.ts
+      link-pr.ts
+    mcp/                    # rt mcp (MCP server)
   services/                 # Business logic
     issue-service.ts        # Issue CRUD + audit trail
     dependency-service.ts   # Graph resolution + ready-work
     jira-service.ts         # Jira API wrapper
     sync-service.ts         # Bi-directional Jira sync
+    github-service.ts       # GitHub API wrapper
+    compact-service.ts      # Archiving + compaction
     time-service.ts         # UTC/timezone conversion
   firebase/                 # Firebase layer
     client.ts               # App + Firestore singleton
@@ -573,8 +765,8 @@ src/
   utils/                    # ID generation, config, formatting
 tests/
   services/
-    dependency-service.test.ts   # Graph algorithm tests (18)
-    time-service.test.ts         # Timezone tests (17)
+    dependency-service.test.ts   # Graph algorithm tests
+    time-service.test.ts         # Timezone tests
 ```
 
 ### Tech Stack
@@ -588,10 +780,38 @@ tests/
 | Database | Firebase Firestore |
 | Auth | Firebase Auth |
 | Jira | jira.js |
+| GitHub | @octokit/rest |
+| MCP | @modelcontextprotocol/sdk |
 | Timezone | date-fns + date-fns-tz |
 | Output | chalk + cli-table3 |
 | Config | conf (XDG-compliant) |
+| Templates | js-yaml |
 | Testing | Vitest |
+
+---
+
+## Publishing to npm
+
+If you are a contributor and want to publish a new version:
+
+```bash
+# 1. Update version in package.json
+npm version patch    # or minor / major
+
+# 2. Build (runs automatically via prepublishOnly)
+npm run build
+
+# 3. Login to npm
+npm login
+
+# 4. Publish
+npm publish
+
+# 5. Verify
+npm info rice-tracker
+```
+
+After publishing, anyone can install with `npm install -g rice-tracker`.
 
 ---
 
@@ -617,7 +837,7 @@ echo $RT_FIREBASE_PROJECT_ID
 
 Your Firestore security rules are blocking access. Either:
 - Use test mode rules (for development)
-- Set up Firebase Auth and sign in
+- Run `rt login` to authenticate, then retry
 - Check your rules in Firebase Console > Firestore > Rules
 
 ### "command not found: rt"
@@ -633,6 +853,35 @@ npx rice-tracker --help           # use npx as fallback
 yarn global bin                    # check yarn's global bin path
 export PATH="$(yarn global bin):$PATH"
 ```
+
+### "GitHub token error" / "Bad credentials"
+
+Your GitHub token is missing or expired:
+
+```bash
+# Re-connect with a fresh token
+rt github connect --owner myorg --repo myrepo --token ghp_xxx
+
+# Or export it as an environment variable
+export GITHUB_TOKEN=ghp_xxx
+```
+
+Ensure the token has `repo` scope (for private repos) or `public_repo` scope (for public repos).
+
+### "Jira authentication failed"
+
+Your Jira API token may have expired or the credentials are wrong:
+
+```bash
+# Re-connect with updated credentials
+rt jira connect \
+  --host your-org.atlassian.net \
+  --email you@company.com \
+  --token your-new-api-token \
+  --project-key PROJ
+```
+
+Get a new token at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens).
 
 ---
 
