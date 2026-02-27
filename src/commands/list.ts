@@ -6,11 +6,12 @@ import { formatIssueTable, outputResult } from '../utils/formatter.js';
 
 export const listCommand = new Command('list')
   .description('List issues')
-  .option('-s, --status <status>', 'Filter by status (open|in_progress|closed)')
+  .option('-s, --status <status>', 'Filter by status (open|in_progress|closed|archived)')
   .option('-p, --priority <n>', 'Filter by priority (0-3)')
   .option('-a, --assignee <user>', 'Filter by assignee')
   .option('-t, --type <type>', 'Filter by type (task|bug|epic|message)')
   .option('-l, --label <label>', 'Filter by label')
+  .option('--overdue', 'Show only overdue issues (dueAt < now and not closed)', false)
   .option('--json', 'Output as JSON', false)
   .action(async (opts) => {
     try {
@@ -20,6 +21,7 @@ export const listCommand = new Command('list')
         assignee?: string;
         type?: IssueType;
         labels?: string[];
+        overdue?: boolean;
       } = {};
 
       if (opts.status) filters.status = opts.status as IssueStatus;
@@ -27,6 +29,7 @@ export const listCommand = new Command('list')
       if (opts.assignee) filters.assignee = opts.assignee;
       if (opts.type) filters.type = opts.type as IssueType;
       if (opts.label) filters.labels = [opts.label];
+      if (opts.overdue) filters.overdue = true;
 
       const issues = await listIssues(filters);
 

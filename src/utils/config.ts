@@ -2,12 +2,14 @@ import Conf from 'conf';
 import type { ProjectConfig } from '../types/index.js';
 import type { JiraConfig, JiraFieldMapping } from '../types/jira.js';
 import { DEFAULT_JIRA_FIELD_MAPPING } from '../types/jira.js';
+import type { GithubConfig } from '../types/github.js';
 
 interface RtConfig {
   currentProject: string | null;
   projects: Record<string, ProjectConfig>;
   jira: JiraConfig | null;
   jiraFieldMapping: JiraFieldMapping;
+  github: GithubConfig | null;
 }
 
 const config = new Conf<RtConfig>({
@@ -17,6 +19,7 @@ const config = new Conf<RtConfig>({
     projects: {},
     jira: null,
     jiraFieldMapping: DEFAULT_JIRA_FIELD_MAPPING,
+    github: null,
   },
 });
 
@@ -70,4 +73,14 @@ export function setJiraFieldMapping(mapping: JiraFieldMapping): void {
 
 export function resetJiraFieldMapping(): void {
   config.set('jiraFieldMapping', DEFAULT_JIRA_FIELD_MAPPING);
+}
+
+export function getGithubConfig(): GithubConfig {
+  const githubConfig = config.get('github');
+  if (!githubConfig) throw new Error('GitHub not configured. Run `rt github connect` first.');
+  return githubConfig;
+}
+
+export function setGithubConfig(githubConfig: GithubConfig): void {
+  config.set('github', githubConfig);
 }
