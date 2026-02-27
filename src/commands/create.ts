@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { getDocs, query, where } from 'firebase/firestore';
 import type { IssueType, Priority } from '../types/index.js';
 import { createIssue } from '../services/issue-service.js';
+import { addChildToEpic } from '../services/epic-service.js';
 import { validateIssue } from '../models/issue.js';
 import { labelConverter } from '../models/label.js';
 import { labelsCollection } from '../firebase/collections.js';
@@ -35,6 +36,7 @@ export const createCommand = new Command('create')
   .option('-l, --labels <labels>', 'Comma-separated labels')
   .option('--defer-until <date>', 'Defer until date (ISO 8601 or YYYY-MM-DD)')
   .option('--due <date>', 'Due date (ISO 8601 or YYYY-MM-DD)')
+  .option('--parent <epicId>', 'Attach to parent epic')
   .option('--json', 'Output as JSON', false)
   .action(async (title: string, opts) => {
     try {
@@ -61,7 +63,7 @@ export const createCommand = new Command('create')
 
       const labelIds = labels ? await resolveLabelNamesToIds(labels) : undefined;
 
-      const issue = await createIssue({
+      let issue = await createIssue({
         title,
         description: opts.description,
         type,
@@ -72,6 +74,10 @@ export const createCommand = new Command('create')
         deferUntil,
         dueAt,
       });
+
+      if (opts.parent) {
+        issue = await addChildToEpic(opts.parent as string, issue.issueId);
+      }
 
       if (opts.json) {
         outputResult(issue, true);
